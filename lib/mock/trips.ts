@@ -1,4 +1,5 @@
-import type { Trip } from "./types";
+import type { Trip, TripTags } from "./types";
+import type { Profile } from "@/lib/profile";
 
 const img = (seed: string, w = 800, h = 600) =>
   `https://picsum.photos/seed/${encodeURIComponent(seed)}/${w}/${h}`;
@@ -6,7 +7,7 @@ const img = (seed: string, w = 800, h = 600) =>
 const avatar = (seed: string) =>
   `https://i.pravatar.cc/120?u=${encodeURIComponent(seed)}`;
 
-export const trips: Trip[] = [
+const rawTrips: Trip[] = [
   {
     id: "tokyo-spring",
     title: "Tokyo in Cherry Blossom",
@@ -489,6 +490,117 @@ export const trips: Trip[] = [
   },
 ];
 
+const TAG_MAP: Record<string, TripTags> = {
+  "tokyo-spring": {
+    vibes: ["cities"],
+    interests: ["food", "museums", "architecture", "nightlife", "photography"],
+    budget: "midrange",
+    pace: "balanced",
+    suggestedFor: ["solo", "couple", "friends"],
+  },
+  "paris-classic": {
+    vibes: ["cities"],
+    interests: ["museums", "architecture", "food", "photography"],
+    budget: "luxury",
+    pace: "balanced",
+    suggestedFor: ["solo", "couple"],
+  },
+  "rome-eternal": {
+    vibes: ["cities"],
+    interests: ["museums", "architecture", "photography", "food"],
+    budget: "midrange",
+    pace: "balanced",
+    suggestedFor: ["solo", "couple", "family"],
+  },
+  "nyc-three-days": {
+    vibes: ["cities"],
+    interests: ["food", "museums", "nightlife", "architecture"],
+    budget: "midrange",
+    pace: "packed",
+    suggestedFor: ["solo", "couple", "friends"],
+  },
+  "cape-town-summit": {
+    vibes: ["mountains", "beach"],
+    interests: ["wildlife", "food", "photography", "hiking"],
+    budget: "luxury",
+    pace: "balanced",
+    suggestedFor: ["couple", "family", "friends"],
+  },
+  "iceland-golden-circle": {
+    vibes: ["mountains", "countryside"],
+    interests: ["photography", "wellness", "hiking"],
+    budget: "luxury",
+    pace: "relaxed",
+    suggestedFor: ["solo", "couple"],
+  },
+  "bali-ubud": {
+    vibes: ["tropical", "islands", "beach", "mountains"],
+    interests: ["wellness", "food", "hiking", "photography"],
+    budget: "midrange",
+    pace: "relaxed",
+    suggestedFor: ["solo", "couple", "friends"],
+  },
+  "marrakech-medina": {
+    vibes: ["cities", "deserts"],
+    interests: ["architecture", "food", "photography"],
+    budget: "midrange",
+    pace: "balanced",
+    suggestedFor: ["solo", "couple", "friends"],
+  },
+  "buenos-aires-tango": {
+    vibes: ["cities"],
+    interests: ["food", "nightlife", "museums", "photography"],
+    budget: "midrange",
+    pace: "packed",
+    suggestedFor: ["solo", "couple", "friends"],
+  },
+  "sydney-harbour": {
+    vibes: ["cities", "beach"],
+    interests: ["food", "photography", "wildlife"],
+    budget: "luxury",
+    pace: "balanced",
+    suggestedFor: ["couple", "family", "friends"],
+  },
+};
+
+export const trips: Trip[] = rawTrips.map((t) => ({
+  ...t,
+  tags: TAG_MAP[t.id],
+}));
+
 export function getTripById(id: string): Trip | undefined {
   return trips.find((t) => t.id === id);
+}
+
+export function matchesProfile(trip: Trip, profile: Profile | null): boolean {
+  if (!profile || !trip.tags) return true;
+
+  if (profile.vibes.length > 0) {
+    const overlap = trip.tags.vibes.some((v) => profile.vibes.includes(v));
+    if (!overlap) return false;
+  }
+
+  if (profile.interests.length > 0) {
+    const overlap = trip.tags.interests.some((i) =>
+      profile.interests.includes(i)
+    );
+    if (!overlap) return false;
+  }
+
+  if (
+    profile.travelStyle &&
+    !trip.tags.suggestedFor.includes(profile.travelStyle)
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+export function filterTripsByProfile(
+  source: Trip[],
+  profile: Profile | null
+): Trip[] {
+  if (!profile) return source;
+  return source.filter((t) => matchesProfile(t, profile));
 }

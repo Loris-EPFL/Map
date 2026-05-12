@@ -29,6 +29,22 @@ export type TripAuthor = {
   avatarUrl: string;
 };
 
+import type {
+  Budget,
+  Interest,
+  Pace,
+  TravelStyle,
+  Vibe,
+} from "@/lib/profile";
+
+export type TripTags = {
+  vibes: Vibe[];
+  interests: Interest[];
+  budget: Budget;
+  pace: Pace;
+  suggestedFor: TravelStyle[];
+};
+
 export type Trip = {
   id: string;
   title: string;
@@ -39,4 +55,5 @@ export type Trip = {
   startLat: number;
   durationDays: number;
   days: TripDay[];
+  tags?: TripTags;
 };

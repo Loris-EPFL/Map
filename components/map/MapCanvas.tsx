@@ -13,15 +13,17 @@ import {
 } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import type { Trip, TripStep } from "@/lib/mock/types";
+import type { Trip } from "@/lib/mock/types";
 import type { MapClientProps } from "./MapClient";
 import TripPin from "./TripPin";
 import ItineraryStep from "./ItineraryStep";
+import StepDetailCard from "@/components/trip/StepDetailCard";
+import { fetchRoute, type Coord } from "@/lib/mock/routing";
 
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
-const MAP_STYLE_DARK = "https://tiles.openfreemap.org/styles/dark";
+const MAP_STYLE_GLOBE = "https://tiles.openfreemap.org/styles/positron";
 
-const DAY_COLORS = ["#22d3ee", "#fbbf24", "#f472b6", "#34d399", "#a78bfa", "#fb7185"];
+const DAY_COLORS = ["#22d3ee", "#f97316", "#f472b6", "#34d399", "#a78bfa", "#fb7185"];
 
 const lineLayer: LayerProps = {
   id: "trip-lines",
@@ -47,58 +49,78 @@ const lineLayer: LayerProps = {
   },
 };
 
-const stopLayer: LayerProps = {
-  id: "trip-stops",
-  type: "circle",
-  paint: {
-    "circle-radius": 4,
-    "circle-color": "#0f172a",
-    "circle-stroke-color": "#fff",
-    "circle-stroke-width": 1.5,
-  },
-};
-
-function tripBounds(trip: Trip): [[number, number], [number, number]] {
+function tripBounds(
+  trip: Trip
+): [[number, number], [number, number]] | null {
   const lngs = trip.days.flatMap((d) => d.steps.map((s) => s.lng));
   const lats = trip.days.flatMap((d) => d.steps.map((s) => s.lat));
+  if (lngs.length === 0) return null;
   return [
     [Math.min(...lngs), Math.min(...lats)],
     [Math.max(...lngs), Math.max(...lats)],
   ];
 }
 
-function tripGeoJSON(trip: Trip): GeoJSON.FeatureCollection {
+function tripGeoJSON(
+  trip: Trip,
+  routes: Record<number, Coord[]> = {}
+): GeoJSON.FeatureCollection {
   const lines: GeoJSON.Feature[] = trip.days.map((day) => ({
     type: "Feature",
     properties: { day: day.dayNumber },
     geometry: {
       type: "LineString",
-      coordinates: day.steps.map((s) => [s.lng, s.lat]),
+      coordinates:
+        routes[day.dayNumber] ?? day.steps.map((s): Coord => [s.lng, s.lat]),
     },
   }));
-  const stops: GeoJSON.Feature[] = trip.days.flatMap((day) =>
-    day.steps.map((s) => ({
-      type: "Feature",
-      properties: { day: day.dayNumber },
-      geometry: { type: "Point", coordinates: [s.lng, s.lat] },
-    }))
-  );
-  return { type: "FeatureCollection", features: [...lines, ...stops] };
+  return { type: "FeatureCollection", features: lines };
 }
 
 export default function MapCanvas(props: MapClientProps) {
   const router = useRouter();
   const mapRef = useRef<MapRef>(null);
   const [hovered, setHovered] = useState<string | null>(null);
-  const [activeStep, setActiveStep] = useState<TripStep | null>(null);
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
+  const onStepClick = props.mode === "itinerary" ? props.onStepClick : undefined;
+  const openStepId =
+    props.mode === "itinerary" ? props.openStepId : undefined;
+  const onCloseStep =
+    props.mode === "itinerary" ? props.onCloseStep : undefined;
+  const addingStep =
+    props.mode === "itinerary" ? props.addingStep === true : false;
+  const onMapPick =
+    props.mode === "itinerary" ? props.onMapPick : undefined;
+  const onEditStep =
+    props.mode === "itinerary" ? props.onEditStep : undefined;
 
   const isGlobe = props.mode === "globe";
   const trip = !isGlobe ? props.trip : null;
+  const bookedSet = useMemo(
+    () => new Set(!isGlobe ? props.bookedStepIds ?? [] : []),
+    [isGlobe, props]
+  );
+
+  const detailStep = useMemo(() => {
+    if (!openStepId || !trip) return null;
+    for (const day of trip.days) {
+      const i = day.steps.findIndex((s) => s.id === openStepId);
+      if (i >= 0) {
+        return {
+          step: day.steps[i],
+          dayNumber: day.dayNumber,
+          stepIndex: i + 1,
+        };
+      }
+    }
+    return null;
+  }, [openStepId, trip]);
 
   const initialView = useMemo(() => {
     if (isGlobe) return { longitude: 10, latitude: 25, zoom: 1.4 };
-    const [[w, s], [e, n]] = tripBounds(props.trip);
+    const b = tripBounds(props.trip);
+    if (!b) return { longitude: 0, latitude: 20, zoom: 2 };
+    const [[w, s], [e, n]] = b;
     return {
       longitude: (w + e) / 2,
       latitude: (s + n) / 2,
@@ -106,7 +128,36 @@ export default function MapCanvas(props: MapClientProps) {
     };
   }, [isGlobe, props]);
 
-  const tripData = useMemo(() => (trip ? tripGeoJSON(trip) : null), [trip]);
+  const [dayRoutes, setDayRoutes] = useState<Record<number, Coord[]>>({});
+
+  useEffect(() => {
+    if (isGlobe || !trip) return;
+    let cancelled = false;
+    setDayRoutes({});
+    (async () => {
+      const results = await Promise.all(
+        trip.days.map(async (day) => {
+          const coords = day.steps.map(
+            (s): Coord => [s.lng, s.lat]
+          );
+          const route = await fetchRoute(coords);
+          return { dayNumber: day.dayNumber, route };
+        })
+      );
+      if (cancelled) return;
+      const next: Record<number, Coord[]> = {};
+      for (const r of results) if (r.route) next[r.dayNumber] = r.route;
+      setDayRoutes(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isGlobe, trip]);
+
+  const tripData = useMemo(
+    () => (trip ? tripGeoJSON(trip, dayRoutes) : null),
+    [trip, dayRoutes]
+  );
 
   useEffect(() => {
     if (!isGlobe || !mapRef.current) return;
@@ -116,15 +167,35 @@ export default function MapCanvas(props: MapClientProps) {
     return () => clearTimeout(id);
   }, [isGlobe]);
 
+  const tripIdentity = useMemo(
+    () =>
+      trip ? `${trip.id}:${trip.days.map((d) => d.dayNumber).join(",")}` : "",
+    [trip]
+  );
+
   useEffect(() => {
     if (isGlobe || !mapRef.current || !trip) return;
-    const [sw, ne] = tripBounds(trip);
-    mapRef.current.fitBounds([sw, ne], {
+    const b = tripBounds(trip);
+    if (!b) return;
+    mapRef.current.fitBounds(b, {
       padding: { top: 80, bottom: 80, left: 80, right: 80 },
       duration: 1400,
       pitch: 35,
     });
-  }, [isGlobe, trip]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGlobe, tripIdentity]);
+
+  useEffect(() => {
+    if (!detailStep || !mapRef.current) return;
+    const map = mapRef.current;
+    const targetZoom = Math.max(map.getZoom(), 13);
+    map.easeTo({
+      center: [detailStep.step.lng, detailStep.step.lat],
+      zoom: targetZoom,
+      duration: 700,
+      offset: [0, 140],
+    });
+  }, [detailStep]);
 
   const handlePinClick = (tripId: string, lng: number, lat: number) => {
     if (mapRef.current) {
@@ -142,9 +213,15 @@ export default function MapCanvas(props: MapClientProps) {
     <Map
       ref={mapRef}
       initialViewState={initialView}
-      mapStyle={isGlobe ? MAP_STYLE_DARK : MAP_STYLE}
+      mapStyle={isGlobe ? MAP_STYLE_GLOBE : MAP_STYLE}
       projection="globe"
       maxPitch={70}
+      cursor={addingStep ? "crosshair" : undefined}
+      onClick={
+        addingStep && onMapPick
+          ? (e) => onMapPick(e.lngLat.lng, e.lngLat.lat)
+          : undefined
+      }
       style={{ position: "absolute", inset: 0 }}
       attributionControl={{ compact: true }}
     >
@@ -215,7 +292,6 @@ export default function MapCanvas(props: MapClientProps) {
       {!isGlobe && tripData && (
         <Source id="trip" type="geojson" data={tripData}>
           <Layer {...lineLayer} />
-          <Layer {...stopLayer} />
         </Source>
       )}
 
@@ -230,7 +306,7 @@ export default function MapCanvas(props: MapClientProps) {
               anchor="bottom"
               onClick={(e) => {
                 e.originalEvent.stopPropagation();
-                setActiveStep(step);
+                onStepClick?.(step.id);
               }}
             >
               <ItineraryStep
@@ -238,44 +314,35 @@ export default function MapCanvas(props: MapClientProps) {
                 dayNumber={day.dayNumber}
                 stepIndex={i + 1}
                 color={DAY_COLORS[(day.dayNumber - 1) % DAY_COLORS.length]}
+                booked={bookedSet.has(step.id)}
               />
             </Marker>
           ))
         )}
 
-      {!isGlobe && activeStep && (
+      {!isGlobe && detailStep && (
         <Popup
-          longitude={activeStep.lng}
-          latitude={activeStep.lat}
+          longitude={detailStep.step.lng}
+          latitude={detailStep.step.lat}
           anchor="bottom"
           offset={32}
-          closeButton={false}
-          maxWidth="240px"
-          onClose={() => setActiveStep(null)}
-          className="step-popup"
+          closeButton={true}
+          closeOnClick={true}
+          maxWidth="320px"
+          onClose={() => onCloseStep?.()}
+          className="step-detail-popup"
         >
-          <div className="w-56 p-1">
-            <div className="overflow-hidden rounded-lg">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={activeStep.imageUrl}
-                alt={activeStep.name}
-                className="h-28 w-full object-cover"
-              />
-            </div>
-            <div className="px-1 pt-2 pb-1">
-              <div className="text-[11px] uppercase tracking-wide text-zinc-500">
-                {activeStep.kind}
-                {activeStep.time ? ` · ${activeStep.time}` : ""}
-              </div>
-              <div className="text-sm font-semibold text-zinc-900">
-                {activeStep.name}
-              </div>
-              {activeStep.notes && (
-                <div className="mt-1 text-xs text-zinc-600">{activeStep.notes}</div>
-              )}
-            </div>
-          </div>
+          <StepDetailCard
+            step={detailStep.step}
+            dayNumber={detailStep.dayNumber}
+            stepIndex={detailStep.stepIndex}
+            isBooked={bookedSet.has(detailStep.step.id)}
+            onEdit={
+              onEditStep
+                ? (patch) => onEditStep(detailStep.step.id, patch)
+                : undefined
+            }
+          />
         </Popup>
       )}
     </Map>

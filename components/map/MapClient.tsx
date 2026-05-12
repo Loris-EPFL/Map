@@ -20,6 +20,20 @@ type GlobeProps = {
 type ItineraryProps = {
   mode: "itinerary";
   trip: Trip;
+  bookedStepIds?: string[];
+  onStepClick?: (stepId: string) => void;
+  openStepId?: string;
+  onCloseStep?: () => void;
+  addingStep?: boolean;
+  onMapPick?: (lng: number, lat: number) => void;
+  onEditStep?: (stepId: string, patch: Partial<TripStepEditable>) => void;
+};
+
+export type TripStepEditable = {
+  name: string;
+  kind: import("@/lib/mock/types").StepKind;
+  time: string;
+  notes: string;
 };
 
 export type MapClientProps = GlobeProps | ItineraryProps;
