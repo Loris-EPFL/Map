@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   DndContext,
@@ -85,6 +86,7 @@ function applySwaps(
 }
 
 export default function TripView({ trip: initialTrip }: { trip: Trip }) {
+  const router = useRouter();
   const [trip, setTrip] = useState<Trip>(initialTrip);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [placementDay, setPlacementDay] = useState<number | null>(null);
@@ -186,15 +188,6 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
       else next.add(id);
       return next;
     });
-  }
-
-  function bookSelected() {
-    setBooked((prev) => {
-      const next = new Set(prev);
-      checkedArray.forEach((id) => next.add(id));
-      return next;
-    });
-    setChecked(new Set());
   }
 
   function confirmCancelSelected() {
@@ -652,7 +645,10 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                     )}
                     {unbookedSelected > 0 && (
                       <button
-                        onClick={bookSelected}
+                        onClick={() => {
+                          const ids = checkedArray.filter((id) => !booked.has(id));
+                          router.push(`/explore/${trip.id}/book?steps=${ids.join(",")}`);
+                        }}
                         className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-emerald-700"
                       >
                         Book selected
