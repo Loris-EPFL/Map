@@ -33,6 +33,8 @@ import { addUserTrip, loadUserTrips } from "@/lib/userTrips";
 
 const DAY_COLORS = ["#22d3ee", "#f97316", "#f472b6", "#34d399", "#a78bfa", "#fb7185"];
 
+const CONFIRMABLE_KINDS: Set<StepKind> = new Set(["viewpoint"]);
+
 const ALTERNATIVES: Record<StepKind, SwapChoice[]> = {
   airport: [
     { name: "Private airport transfer", imageSeed: "alt-transfer" },
@@ -105,7 +107,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
       ? ME
       : FRIENDS.find((f) => f.id === activeUserId) ?? ME;
   const activeState = users[activeUserId] ?? emptyUserState();
-  const { checked, booked, swaps } = activeState;
+  const { checked, booked, confirmed, swaps } = activeState;
 
   type Updater<T> = T | ((prev: T) => T);
   function setChecked(value: Updater<Set<string>>) {
@@ -120,6 +122,13 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
       const cur = prev[activeUserId] ?? emptyUserState();
       const next = typeof value === "function" ? (value as (p: Set<string>) => Set<string>)(cur.booked) : value;
       return { ...prev, [activeUserId]: { ...cur, booked: next } };
+    });
+  }
+  function setConfirmed(value: Updater<Set<string>>) {
+    setUsers((prev) => {
+      const cur = prev[activeUserId] ?? emptyUserState();
+      const next = typeof value === "function" ? (value as (p: Set<string>) => Set<string>)(cur.confirmed) : value;
+      return { ...prev, [activeUserId]: { ...cur, confirmed: next } };
     });
   }
   function setSwaps(value: Updater<Record<string, SwapChoice>>) {
@@ -160,6 +169,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
 
   const totalSteps = trip.days.reduce((acc, d) => acc + d.steps.length, 0);
   const bookedCount = booked.size;
+  const confirmedCount = confirmed.size;
   const checkedArray = Array.from(checked);
 
   const visibleStepIds = useMemo(
@@ -190,14 +200,41 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
     });
   }
 
+  function isConfirmable(stepId: string): boolean {
+    for (const day of trip.days) {
+      const step = day.steps.find((s) => s.id === stepId);
+      if (step) return CONFIRMABLE_KINDS.has(step.kind);
+    }
+    return false;
+  }
+
   function confirmCancelSelected() {
     setBooked((prev) => {
       const next = new Set(prev);
       checkedArray.forEach((id) => next.delete(id));
       return next;
     });
+    setConfirmed((prev) => {
+      const next = new Set(prev);
+      checkedArray.forEach((id) => next.delete(id));
+      return next;
+    });
     setChecked(new Set());
     setConfirmingCancel(false);
+  }
+
+  function confirmSelected() {
+    const ids = checkedArray.filter((id) => !booked.has(id) && !confirmed.has(id) && isConfirmable(id));
+    setConfirmed((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
+    setChecked((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
   }
 
   function applySwap(stepId: string, choice: SwapChoice) {
@@ -388,6 +425,14 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                       </span>
                     </>
                   ) : null}
+                  {confirmedCount > 0 ? (
+                    <>
+                      {" · "}
+                      <span className="font-medium text-indigo-600">
+                        {confirmedCount} confirmed
+                      </span>
+                    </>
+                  ) : null}
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -510,6 +555,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                     >
                       {day.steps.map((step, i) => {
                         const isBooked = booked.has(step.id);
+                        const isConfirmed = confirmed.has(step.id);
                         const isChecked = checked.has(step.id);
                         const isSwapped = !!swaps[step.id];
                         const isOpen = openChangeFor === step.id;
@@ -520,6 +566,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                             step={step}
                             color={color}
                             isBooked={isBooked}
+                            isConfirmed={isConfirmed}
                           >
                             {(dragProps) => (
                               <StepRow
@@ -527,6 +574,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                                 dayNumber={day.dayNumber}
                                 stepIndex={i + 1}
                                 isBooked={isBooked}
+                                isConfirmed={isConfirmed}
                                 isChecked={isChecked}
                                 isSwapped={isSwapped}
                                 onToggleCheck={() => toggleCheck(step.id)}
@@ -576,7 +624,11 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
         {/* Always-visible bottom bar */}
         {(() => {
           const bookedSelected = checkedArray.filter((id) => booked.has(id)).length;
-          const unbookedSelected = checkedArray.length - bookedSelected;
+          const confirmedSelectedCount = checkedArray.filter((id) => confirmed.has(id)).length;
+          const pendingSelected = checkedArray.filter((id) => !booked.has(id) && !confirmed.has(id));
+          const pendingBookable = pendingSelected.filter((id) => !isConfirmable(id));
+          const pendingConfirmable = pendingSelected.filter((id) => isConfirmable(id));
+          const hasAnyToCancel = bookedSelected > 0 || confirmedSelectedCount > 0;
           const hasSelection = checkedArray.length > 0;
           return (
             <div className="fixed inset-x-0 bottom-0 z-30 border-t border-zinc-200 bg-white/95 px-5 py-3 backdrop-blur lg:left-auto lg:right-0 lg:w-[460px]">
@@ -585,9 +637,9 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                   <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                     <span aria-hidden className="mt-0.5">⚠</span>
                     <span>
-                      Cancelling {bookedSelected} booked{" "}
-                      {bookedSelected === 1 ? "stop" : "stops"} may incur a
-                      refund fee depending on each provider's policy.
+                      {bookedSelected > 0
+                        ? `Cancelling ${bookedSelected} booked ${bookedSelected === 1 ? "stop" : "stops"} may incur a refund fee depending on each provider's policy.`
+                        : `This will remove ${confirmedSelectedCount} confirmed ${confirmedSelectedCount === 1 ? "stop" : "stops"} from your itinerary.`}
                     </span>
                   </div>
                   <div className="flex items-center justify-end gap-2">
@@ -595,7 +647,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                       onClick={() => setConfirmingCancel(false)}
                       className="rounded-full border border-zinc-200 px-4 py-2 text-xs font-medium text-zinc-700 transition hover:border-zinc-400"
                     >
-                      Keep bookings
+                      Keep
                     </button>
                     <button
                       onClick={confirmCancelSelected}
@@ -612,11 +664,6 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                       <>
                         <span className="font-medium">{checkedArray.length}</span>{" "}
                         selected
-                        {bookedSelected > 0 && unbookedSelected > 0 && (
-                          <span className="ml-1 text-xs text-zinc-500">
-                            ({unbookedSelected} new, {bookedSelected} booked)
-                          </span>
-                        )}
                       </>
                     ) : (
                       <span className="text-zinc-500">No stops selected</span>
@@ -635,7 +682,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                     >
                       {allVisibleSelected ? "Deselect all" : "Select all"}
                     </button>
-                    {bookedSelected > 0 && (
+                    {hasAnyToCancel && (
                       <button
                         onClick={() => setConfirmingCancel(true)}
                         className="rounded-full border border-rose-200 bg-white px-4 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-50"
@@ -643,11 +690,18 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                         Cancel selected
                       </button>
                     )}
-                    {unbookedSelected > 0 && (
+                    {pendingConfirmable.length > 0 && (
+                      <button
+                        onClick={confirmSelected}
+                        className="rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
+                      >
+                        Confirm selected
+                      </button>
+                    )}
+                    {pendingBookable.length > 0 && (
                       <button
                         onClick={() => {
-                          const ids = checkedArray.filter((id) => !booked.has(id));
-                          router.push(`/explore/${trip.id}/book?steps=${ids.join(",")}`);
+                          router.push(`/explore/${trip.id}/book?steps=${pendingBookable.join(",")}`);
                         }}
                         className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-emerald-700"
                       >
@@ -703,6 +757,7 @@ type StepRowProps = {
   dayNumber: number;
   stepIndex: number;
   isBooked: boolean;
+  isConfirmed: boolean;
   isChecked: boolean;
   isSwapped: boolean;
   isChangeOpen: boolean;
@@ -720,6 +775,7 @@ function StepRow({
   dayNumber,
   stepIndex,
   isBooked,
+  isConfirmed,
   isChecked,
   isSwapped,
   isChangeOpen,
@@ -736,6 +792,8 @@ function StepRow({
       className={`rounded-lg border p-2 transition ${
         isBooked
           ? "border-emerald-200 bg-emerald-50/60"
+          : isConfirmed
+          ? "border-indigo-200 bg-indigo-50/60"
           : isChecked
           ? "border-zinc-300 bg-zinc-50"
           : "border-transparent"
@@ -753,11 +811,20 @@ function StepRow({
               src={step.imageUrl}
               alt={step.name}
               className={`h-14 w-14 rounded-md object-cover ${
-                isBooked ? "ring-2 ring-emerald-400" : ""
+                isBooked
+                  ? "ring-2 ring-emerald-400"
+                  : isConfirmed
+                  ? "ring-2 ring-indigo-400"
+                  : ""
               }`}
             />
             {isBooked && (
               <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-emerald-500 text-[10px] font-bold text-white">
+                ✓
+              </span>
+            )}
+            {isConfirmed && !isBooked && (
+              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-indigo-500 text-[10px] font-bold text-white">
                 ✓
               </span>
             )}
@@ -776,6 +843,11 @@ function StepRow({
               {isBooked && (
                 <span className="rounded-full bg-emerald-100 px-1.5 py-px text-[9px] font-semibold text-emerald-700">
                   Booked
+                </span>
+              )}
+              {isConfirmed && !isBooked && (
+                <span className="rounded-full bg-indigo-100 px-1.5 py-px text-[9px] font-semibold text-indigo-700">
+                  Confirmed
                 </span>
               )}
             </div>
@@ -929,6 +1001,18 @@ function SharePopover({
   onRemove: (id: string) => void;
   onClose: () => void;
 }) {
+  const [copied, setCopied] = useState(false);
+  const inviteLink = typeof window !== "undefined"
+    ? `${window.location.origin}/invite/${Math.random().toString(36).slice(2, 10)}`
+    : "https://atlas.example/invite/abc123";
+
+  function copyLink() {
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
   return (
     <>
       {/* click-away backdrop */}
@@ -988,6 +1072,28 @@ function SharePopover({
             );
           })}
         </ul>
+        <div className="mt-3 border-t border-zinc-100 pt-3">
+          <div className="mb-1.5 text-xs font-semibold text-zinc-700">Invite new friends</div>
+          <p className="mb-2 text-xs text-zinc-500">
+            Share this link with anyone — they can join and plan together.
+          </p>
+          <div className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5">
+            <span className="min-w-0 flex-1 truncate text-[11px] text-zinc-500 font-mono">
+              {inviteLink}
+            </span>
+            <button
+              type="button"
+              onClick={copyLink}
+              className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-medium transition ${
+                copied
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-white border border-zinc-200 text-zinc-700 hover:border-zinc-400"
+              }`}
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+        </div>
         <div className="mt-3 flex justify-end">
           <button
             type="button"
@@ -1101,11 +1207,13 @@ function SortableStepLI({
   step,
   color,
   isBooked,
+  isConfirmed,
   children,
 }: {
   step: TripStep;
   color: string;
   isBooked: boolean;
+  isConfirmed: boolean;
   children: (props: DragHandleProps) => React.ReactNode;
 }) {
   const {
@@ -1129,7 +1237,11 @@ function SortableStepLI({
     <li ref={setNodeRef} style={style} className="mb-4 last:mb-0">
       <span
         className={`absolute -left-[7px] mt-1 inline-block h-3 w-3 rounded-full border-2 ${
-          isBooked ? "border-emerald-400" : "border-white"
+          isBooked
+            ? "border-emerald-400"
+            : isConfirmed
+            ? "border-indigo-400"
+            : "border-white"
         }`}
         style={{ backgroundColor: color }}
       />

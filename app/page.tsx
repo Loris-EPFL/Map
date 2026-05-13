@@ -90,7 +90,7 @@ export default function Home() {
             Travel planner
           </p>
           <h1 className="text-4xl font-semibold leading-tight tracking-tight sm:text-6xl">
-            Where do you want to go?
+            Let us help you organize your next trip effortlessly
           </h1>
           <p className="mt-4 text-sm text-white/70 sm:text-base">
             Browse trips others have taken, tell us what you love,

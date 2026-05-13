@@ -49,6 +49,7 @@ export type SwapChoice = { name: string; imageSeed: string };
 export type UserTripState = {
   checked: Set<string>;
   booked: Set<string>;
+  confirmed: Set<string>;
   swaps: Record<string, SwapChoice>;
 };
 
@@ -84,7 +85,7 @@ const PRESETS: Record<string, Preset> = {
 };
 
 export function emptyUserState(): UserTripState {
-  return { checked: new Set(), booked: new Set(), swaps: {} };
+  return { checked: new Set(), booked: new Set(), confirmed: new Set(), swaps: {} };
 }
 
 export function makeUserInitialState(userId: string, trip: Trip): UserTripState {
@@ -103,5 +104,5 @@ export function makeUserInitialState(userId: string, trip: Trip): UserTripState 
       }
     })
   );
-  return { checked: new Set(), booked, swaps };
+  return { checked: new Set(), booked, confirmed: new Set(), swaps };
 }
