@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -102,6 +101,10 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [detailStepId, setDetailStepId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [tripSaved, setTripSaved] = useState(() =>
+    Boolean(loadUserTrips().find((t) => t.baseTripId === initialTrip.id))
+  );
 
   function guardAction(fn: () => void) {
     if (activeUserId === "me") {
@@ -177,6 +180,16 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
   }, [trip, swaps, selectedDay]);
 
   const totalSteps = trip.days.reduce((acc, d) => acc + d.steps.length, 0);
+  const isDirty = useMemo(() => {
+    const origSteps = initialTrip.days.reduce((a, d) => a + d.steps.length, 0);
+    return (
+      Object.keys(swaps).length > 0 ||
+      totalSteps !== origSteps ||
+      booked.size > 0 ||
+      confirmed.size > 0
+    );
+  }, [initialTrip, swaps, totalSteps, booked, confirmed]);
+
   const bookedCount = booked.size;
   const confirmedCount = confirmed.size;
   const checkedArray = Array.from(checked);
@@ -386,12 +399,19 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
           }}
           onEditStep={(stepId, patch) => editStep(stepId, patch)}
         />
-        <Link
-          href="/browse"
+        <button
+          type="button"
+          onClick={() => {
+            if (isDirty && !tripSaved) {
+              setShowLeaveConfirm(true);
+            } else {
+              router.push("/browse");
+            }
+          }}
           className="absolute left-4 top-4 z-10 inline-flex items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-sm font-medium text-zinc-700 shadow-md backdrop-blur transition hover:bg-white"
         >
           ← Back to globe
-        </Link>
+        </button>
 
         {placementDay != null && (
           <div className="pointer-events-none absolute inset-x-0 top-4 z-20 flex justify-center px-4">
@@ -510,7 +530,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <SaveTripButton baseTripId={trip.id} title={trip.title} />
+                <SaveTripButton baseTripId={trip.id} title={trip.title} onSave={() => setTripSaved(true)} />
                 <div className="relative">
                   <button
                     type="button"
@@ -794,6 +814,47 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
         })()}
       </aside>
 
+      {/* Leave without saving modal */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center px-4 pb-6 sm:items-center sm:pb-0">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowLeaveConfirm(false)} />
+          <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-3 flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100">
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-zinc-500" aria-hidden>
+                  <path fillRule="evenodd" d="M3 3.5A1.5 1.5 0 014.5 2h6.879a1.5 1.5 0 011.06.44l4.122 4.12A1.5 1.5 0 0117 7.622V16.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 013 16.5v-13zm8.75-1.5v3.25c0 .138.112.25.25.25H15.5L11.75 2z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h2 className="text-base font-semibold text-zinc-900">Go back without saving?</h2>
+            </div>
+            <p className="text-sm leading-relaxed text-zinc-600">
+              You made changes to this trip but haven&apos;t saved it yet. If you leave now, your modifications will be lost.
+            </p>
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => router.push("/browse")}
+                className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-400"
+              >
+                Go to globe
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  addUserTrip(initialTrip.id, initialTrip.title);
+                  setTripSaved(true);
+                  setShowLeaveConfirm(false);
+                  router.push("/browse");
+                }}
+                className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700"
+              >
+                Save my trip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Friend modification guard modal */}
       {pendingAction && (
         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center px-4 pb-6 sm:pb-0">
@@ -951,6 +1012,15 @@ function StepRow({
             </div>
             <div className="truncate text-sm font-medium text-zinc-900">{step.name}</div>
             {step.notes && <div className="mt-0.5 truncate text-xs text-zinc-500">{step.notes}</div>}
+            <label className="mt-1 inline-flex cursor-pointer items-center gap-1.5 text-xs text-zinc-500">
+              <input
+                type="checkbox"
+                checked={isChecked}
+                onChange={onToggleCheck}
+                className="h-3.5 w-3.5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-400"
+              />
+              Select
+            </label>
           </div>
         </div>
         {/* Map details + drag */}
@@ -981,26 +1051,15 @@ function StepRow({
 
       {/* Action row: Trash + Select (left) + Change / Book/Confirm (right) */}
       <div className="flex items-center justify-between gap-2 px-2 pb-2">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onDelete}
-            aria-label="Delete stop"
-            title="Delete stop"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-zinc-300 transition hover:bg-rose-50 hover:text-rose-500"
-          >
-            <TrashIcon />
-          </button>
-          <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-zinc-500">
-            <input
-              type="checkbox"
-              checked={isChecked}
-              onChange={onToggleCheck}
-              className="h-3.5 w-3.5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-400"
-            />
-            Select
-          </label>
-        </div>
+        <button
+          type="button"
+          onClick={onDelete}
+          aria-label="Delete stop"
+          title="Delete stop"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-zinc-300 transition hover:bg-rose-50 hover:text-rose-500"
+        >
+          <TrashIcon />
+        </button>
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -1247,9 +1306,11 @@ function SharePopover({
 function SaveTripButton({
   baseTripId,
   title,
+  onSave,
 }: {
   baseTripId: string;
   title: string;
+  onSave?: () => void;
 }) {
   const [saved, setSaved] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
@@ -1270,6 +1331,7 @@ function SaveTripButton({
     addUserTrip(baseTripId, title);
     setSaved(true);
     setJustSaved(true);
+    onSave?.();
   }
 
   return (

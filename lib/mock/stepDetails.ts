@@ -8,6 +8,8 @@ export type StepDetails = {
   reviewCount: number;
   priceLevel: 1 | 2 | 3 | 4;
   description: string;
+  guideNote: string;
+  extraImages: string[];
   tips: string[];
   amenities: string[];
   reservationRequired: boolean;
@@ -159,6 +161,37 @@ const TIPS: Record<StepKind, string[][]> = {
   ],
 };
 
+const GUIDE_NOTES: Record<StepKind, string[]> = {
+  airport: [
+    "Every airport has its rhythm — figure it out fast. Get to the transit counter before the queues build, and don't sleep on the local snacks on the way out.",
+    "The connections here are actually good. Follow the rail signs and you'll be in the city before most people have found their luggage.",
+  ],
+  hotel: [
+    "This one's a genuine base, not just a bed. The neighbourhood around it rewards wandering — give it a morning before you rush off anywhere.",
+    "Front-desk staff here know the city well. Ask them, not the concierge pamphlet — they'll point you somewhere real.",
+  ],
+  activity: [
+    "Go early, go slow, and let the place speak. The people who get the most out of it are the ones who actually pause instead of just photograph.",
+    "One of those stops that rewards the curious. If you find yourself wanting more time here, that's not a problem — it means it's working.",
+    "The queue looks worse than it is. Once you're inside, the crowds thin fast and you'll understand why people keep coming back.",
+    "I tell everyone the same thing: don't plan what comes after. Leave the afternoon open and see where it takes you.",
+  ],
+  restaurant: [
+    "Order something you don't recognise at least once. The kitchen here knows what it's doing, and the menu isn't designed for safe choices.",
+    "Skip the first page. The dishes the regulars love are further in, and the staff will tell you what's good tonight if you just ask.",
+    "Come hungry and come early — by 20:00 the room has a completely different energy and the pacing changes in a way I love.",
+  ],
+  transport: [
+    "Buy the day pass. The math works out and you won't be scrambling at every gate. Trust me on this one.",
+    "This stretch of the route is worth looking up from your phone — the view changes fast and most people miss it entirely.",
+  ],
+  viewpoint: [
+    "I've been here at every hour and the late-afternoon light is the one I keep coming back for. Most people arrive at noon and wonder why their photos look flat.",
+    "Don't rush it. Put the camera down for five minutes and actually look. It takes a moment for the scale of the place to really land.",
+    "The vantage most people miss is twenty metres left of the obvious spot. Walk past the crowd and you'll find it — and you'll have it to yourself.",
+  ],
+};
+
 const PRICES: Record<StepKind, (1 | 2 | 3 | 4)[]> = {
   airport: [1],
   hotel: [3, 4],
@@ -210,6 +243,11 @@ export function getStepDetails(step: TripStep): StepDetails {
   const phone = `+1 555 ${phoneArea} ${phoneRest}`;
 
   const slug = step.id.replace(/[^a-z0-9-]/gi, "");
+  const guideNote = pick(GUIDE_NOTES[step.kind]);
+  const extraImages = [
+    `https://picsum.photos/seed/${encodeURIComponent(step.id + "-b")}/800/600`,
+    `https://picsum.photos/seed/${encodeURIComponent(step.id + "-c")}/800/600`,
+  ];
 
   return {
     openHours,
@@ -220,6 +258,8 @@ export function getStepDetails(step: TripStep): StepDetails {
     priceLevel,
     description:
       (step.notes ? step.notes + " " : "") + kindBlurb[step.kind],
+    guideNote,
+    extraImages,
     tips,
     amenities,
     reservationRequired: step.kind === "restaurant" || step.kind === "hotel",

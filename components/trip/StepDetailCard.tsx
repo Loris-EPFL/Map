@@ -44,6 +44,8 @@ export default function StepDetailCard({
   onEdit?: (patch: Partial<TripStepEditable>) => void;
 }) {
   const d = getStepDetails(step);
+  const photos = [step.imageUrl, ...d.extraImages];
+  const [photoIdx, setPhotoIdx] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<TripStepEditable>({
     name: step.name,
@@ -60,6 +62,7 @@ export default function StepDetailCard({
       notes: step.notes ?? "",
     });
     setIsEditing(false);
+    setPhotoIdx(0);
   }, [step.id, step.name, step.kind, step.time, step.notes]);
 
   function saveEdit() {
@@ -74,14 +77,49 @@ export default function StepDetailCard({
 
   return (
     <div className="step-card flex max-h-[44vh] w-[300px] flex-col">
-      {/* Cover */}
-      <div className="relative h-24 w-full shrink-0 overflow-hidden rounded-md">
+      {/* Photo slideshow */}
+      <div className="relative h-36 w-full shrink-0 overflow-hidden rounded-md bg-zinc-100">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={step.imageUrl}
+          key={photos[photoIdx]}
+          src={photos[photoIdx]}
           alt={step.name}
-          className="h-full w-full object-cover"
+          className="h-full w-full object-cover transition-opacity duration-300"
         />
+        {/* Prev / Next */}
+        {photos.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setPhotoIdx((i) => (i - 1 + photos.length) % photos.length); }}
+              className="absolute left-1.5 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition hover:bg-black/60"
+              aria-label="Previous photo"
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-3 w-3"><path d="M10 4L6 8l4 4"/></svg>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setPhotoIdx((i) => (i + 1) % photos.length); }}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition hover:bg-black/60"
+              aria-label="Next photo"
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-3 w-3"><path d="M6 4l4 4-4 4"/></svg>
+            </button>
+          </>
+        )}
+        {/* Dot indicators */}
+        <div className="absolute bottom-1.5 left-1/2 flex -translate-x-1/2 items-center gap-1">
+          {photos.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setPhotoIdx(i); }}
+              className={`rounded-full transition-all ${i === photoIdx ? "h-1.5 w-3.5 bg-white" : "h-1.5 w-1.5 bg-white/50"}`}
+              aria-label={`Photo ${i + 1}`}
+            />
+          ))}
+        </div>
+        {/* Badges */}
         {isBooked && (
           <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white shadow">
             ✓ Booked
@@ -146,6 +184,12 @@ export default function StepDetailCard({
             </span>
           )}
         </div>
+
+        <section className="mt-3 rounded-md border border-zinc-100 bg-zinc-50 px-2.5 py-2">
+          <p className="text-[11px] italic leading-relaxed text-zinc-500">
+            "{d.guideNote}"
+          </p>
+        </section>
 
         <div className="mt-3 space-y-1.5">
           <InfoRow icon="🕐" label="Open hours" value={d.openHours} />
