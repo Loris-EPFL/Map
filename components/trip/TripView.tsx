@@ -232,6 +232,25 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
     setConfirmingCancel(false);
   }
 
+  function deleteStep(stepId: string) {
+    setTrip((prev) => ({
+      ...prev,
+      days: prev.days.map((d) => ({
+        ...d,
+        steps: d.steps.filter((s) => s.id !== stepId),
+      })),
+    }));
+    setChecked((prev) => { const n = new Set(prev); n.delete(stepId); return n; });
+    setBooked((prev) => { const n = new Set(prev); n.delete(stepId); return n; });
+    setConfirmed((prev) => { const n = new Set(prev); n.delete(stepId); return n; });
+    setSwaps((prev) => { const n = { ...prev }; delete n[stepId]; return n; });
+  }
+
+  function confirmStep(stepId: string) {
+    setConfirmed((prev) => { const n = new Set(prev); n.add(stepId); return n; });
+    setChecked((prev) => { const n = new Set(prev); n.delete(stepId); return n; });
+  }
+
   function confirmSelected() {
     const ids = checkedArray.filter((id) => !booked.has(id) && !confirmed.has(id) && isConfirmable(id));
     setConfirmed((prev) => {
@@ -632,6 +651,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                                 isConfirmed={isConfirmed}
                                 isChecked={isChecked}
                                 isSwapped={isSwapped}
+                                isConfirmable={isConfirmable(step.id)}
                                 onToggleCheck={() => toggleCheck(step.id)}
                                 onToggleChange={() =>
                                   setOpenChangeFor(isOpen ? null : step.id)
@@ -642,6 +662,9 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                                   guardAction(() => applySwap(step.id, c))
                                 }
                                 onRestore={() => guardAction(() => restoreOriginal(step.id))}
+                                onDelete={() => guardAction(() => deleteStep(step.id))}
+                                onBook={() => guardAction(() => router.push(`/explore/${trip.id}/book?steps=${step.id}`))}
+                                onConfirm={() => guardAction(() => confirmStep(step.id))}
                                 onOpenDetail={() => setDetailStepId(step.id)}
                                 dragHandleProps={dragProps}
                               />
@@ -853,12 +876,16 @@ type StepRowProps = {
   isConfirmed: boolean;
   isChecked: boolean;
   isSwapped: boolean;
+  isConfirmable: boolean;
   isChangeOpen: boolean;
   alternatives: SwapChoice[];
   onToggleCheck: () => void;
   onToggleChange: () => void;
   onPickAlternative: (choice: SwapChoice) => void;
   onRestore: () => void;
+  onDelete: () => void;
+  onBook: () => void;
+  onConfirm: () => void;
   onOpenDetail: () => void;
   dragHandleProps?: DragHandleProps;
 };
@@ -871,18 +898,22 @@ function StepRow({
   isConfirmed,
   isChecked,
   isSwapped,
+  isConfirmable,
   isChangeOpen,
   alternatives,
   onToggleCheck,
   onToggleChange,
   onPickAlternative,
   onRestore,
+  onDelete,
+  onBook,
+  onConfirm,
   onOpenDetail,
   dragHandleProps,
 }: StepRowProps) {
   return (
     <div
-      className={`rounded-lg border p-2 transition ${
+      className={`rounded-lg border transition ${
         isBooked
           ? "border-emerald-200 bg-emerald-50/60"
           : isConfirmed
@@ -892,139 +923,151 @@ function StepRow({
           : "border-transparent"
       }`}
     >
-      <div className="flex items-start gap-1">
-        <button
-          type="button"
-          onClick={onOpenDetail}
-          className="group flex w-full gap-3 rounded-md text-left transition hover:bg-zinc-100/60"
-        >
+      {/* Main info row */}
+      <div className="flex items-start gap-1 p-2">
+        <div className="flex min-w-0 flex-1 gap-3">
           <div className="relative h-14 w-14 shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={step.imageUrl}
               alt={step.name}
               className={`h-14 w-14 rounded-md object-cover ${
-                isBooked
-                  ? "ring-2 ring-emerald-400"
-                  : isConfirmed
-                  ? "ring-2 ring-indigo-400"
-                  : ""
+                isBooked ? "ring-2 ring-emerald-400" : isConfirmed ? "ring-2 ring-indigo-400" : ""
               }`}
             />
             {isBooked && (
-              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-emerald-500 text-[10px] font-bold text-white">
-                ✓
-              </span>
+              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-emerald-500 text-[10px] font-bold text-white">✓</span>
             )}
             {isConfirmed && !isBooked && (
-              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-indigo-500 text-[10px] font-bold text-white">
-                ✓
-              </span>
+              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-indigo-500 text-[10px] font-bold text-white">✓</span>
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-zinc-400">
-              <span>
-                {dayNumber}.{stepIndex} · {step.kind}
-                {step.time ? ` · ${step.time}` : ""}
-              </span>
-              {isSwapped && (
-                <span className="rounded-full bg-violet-100 px-1.5 py-px text-[9px] font-semibold text-violet-700">
-                  Changed
-                </span>
-              )}
-              {isBooked && (
-                <span className="rounded-full bg-emerald-100 px-1.5 py-px text-[9px] font-semibold text-emerald-700">
-                  Booked
-                </span>
-              )}
-              {isConfirmed && !isBooked && (
-                <span className="rounded-full bg-indigo-100 px-1.5 py-px text-[9px] font-semibold text-indigo-700">
-                  Confirmed
-                </span>
-              )}
+            <div className="flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-wide text-zinc-400">
+              <span>{dayNumber}.{stepIndex} · {step.kind}{step.time ? ` · ${step.time}` : ""}</span>
+              {isSwapped && <span className="rounded-full bg-violet-100 px-1.5 py-px text-[9px] font-semibold text-violet-700">Changed</span>}
+              {isBooked && <span className="rounded-full bg-emerald-100 px-1.5 py-px text-[9px] font-semibold text-emerald-700">Booked</span>}
+              {isConfirmed && !isBooked && <span className="rounded-full bg-indigo-100 px-1.5 py-px text-[9px] font-semibold text-indigo-700">Confirmed</span>}
             </div>
-            <div className="flex items-center gap-1 truncate text-sm font-medium">
-              <span className="truncate">{step.name}</span>
-              <span
-                aria-hidden
-                className="shrink-0 text-xs text-zinc-400 opacity-0 transition group-hover:opacity-100"
-              >
-                →
-              </span>
-            </div>
-            {step.notes && (
-              <div className="mt-0.5 truncate text-xs text-zinc-500">{step.notes}</div>
-            )}
+            <div className="truncate text-sm font-medium text-zinc-900">{step.name}</div>
+            {step.notes && <div className="mt-0.5 truncate text-xs text-zinc-500">{step.notes}</div>}
           </div>
-        </button>
-        {dragHandleProps && (
+        </div>
+        {/* Map details + drag */}
+        <div className="flex shrink-0 items-start gap-0.5">
           <button
             type="button"
-            aria-label="Drag to reorder"
-            title="Drag to reorder"
-            {...(dragHandleProps.attributes as Record<string, unknown>)}
-            {...((dragHandleProps.listeners ?? {}) as Record<string, unknown>)}
-            className="mt-1 inline-flex h-7 w-6 shrink-0 cursor-grab touch-none items-center justify-center rounded text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 active:cursor-grabbing"
+            onClick={onOpenDetail}
+            aria-label="View on map"
+            title="View on map"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
           >
-            <GripIcon />
+            <MapPinIcon />
           </button>
-        )}
-      </div>
-
-      <div className="mt-2 flex items-center justify-between gap-2 pl-[68px]">
-        <label className="inline-flex items-center gap-1.5 text-xs text-zinc-600">
-          <input
-            type="checkbox"
-            checked={isChecked}
-            onChange={onToggleCheck}
-            className="h-3.5 w-3.5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-400"
-          />
-          Select
-        </label>
-        <div className="flex items-center gap-1.5">
-          {alternatives.length > 0 && (
+          {dragHandleProps && (
             <button
               type="button"
-              onClick={onToggleChange}
-              className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
-                isChangeOpen
-                  ? "bg-zinc-900 text-white"
-                  : "border border-zinc-200 text-zinc-700 hover:border-zinc-400"
-              }`}
+              aria-label="Drag to reorder"
+              title="Drag to reorder"
+              {...(dragHandleProps.attributes as Record<string, unknown>)}
+              {...((dragHandleProps.listeners ?? {}) as Record<string, unknown>)}
+              className="inline-flex h-8 w-6 cursor-grab touch-none items-center justify-center rounded text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 active:cursor-grabbing"
             >
-              Change
+              <GripIcon />
             </button>
           )}
         </div>
       </div>
 
+      {/* Action row: Trash + Select (left) + Change / Book/Confirm (right) */}
+      <div className="flex items-center justify-between gap-2 px-2 pb-2">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label="Delete stop"
+            title="Delete stop"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-zinc-300 transition hover:bg-rose-50 hover:text-rose-500"
+          >
+            <TrashIcon />
+          </button>
+          <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-zinc-500">
+            <input
+              type="checkbox"
+              checked={isChecked}
+              onChange={onToggleCheck}
+              className="h-3.5 w-3.5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-400"
+            />
+            Select
+          </label>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onToggleChange}
+            className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
+              isChangeOpen
+                ? "bg-zinc-900 text-white"
+                : "border border-zinc-200 text-zinc-600 hover:border-zinc-400 hover:text-zinc-900"
+            }`}
+          >
+            Change
+          </button>
+          {isBooked ? (
+            <span className="text-[11px] font-medium text-emerald-600">Booked ✓</span>
+          ) : isConfirmed ? (
+            <span className="text-[11px] font-medium text-indigo-600">Confirmed ✓</span>
+          ) : isConfirmable ? (
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
+            >
+              Confirm
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onBook}
+              className="rounded-full bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-emerald-700"
+            >
+              Book
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Alternatives panel */}
       {isChangeOpen && alternatives.length > 0 && (
-        <div className="mt-2 ml-[68px] rounded-md border border-zinc-200 bg-white p-2">
-          <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">
-            Alternatives
+        <div className="mx-2 mb-2 overflow-hidden rounded-lg border border-zinc-200 bg-white">
+          <div className="border-b border-zinc-100 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+            Swap with
           </div>
-          <div className="flex flex-col gap-1">
-            {alternatives.map((alt) => (
-              <button
-                key={alt.imageSeed}
-                type="button"
-                onClick={() => onPickAlternative(alt)}
-                className="rounded-md px-2 py-1.5 text-left text-xs text-zinc-700 transition hover:bg-zinc-100"
-              >
-                {alt.name}
-              </button>
-            ))}
-            {isSwapped && (
-              <button
-                type="button"
-                onClick={onRestore}
-                className="rounded-md border-t border-zinc-100 px-2 py-1.5 text-left text-xs text-zinc-500 transition hover:bg-zinc-50"
-              >
-                Restore original
-              </button>
-            )}
-          </div>
+          {alternatives.map((alt) => (
+            <button
+              key={alt.imageSeed}
+              type="button"
+              onClick={() => onPickAlternative(alt)}
+              className="flex w-full items-center gap-3 border-b border-zinc-100 px-3 py-2.5 text-left last:border-b-0 transition hover:bg-zinc-50"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`https://picsum.photos/seed/${encodeURIComponent(alt.imageSeed)}/120/90`}
+                alt={alt.name}
+                className="h-10 w-10 shrink-0 rounded-md object-cover"
+              />
+              <span className="text-sm text-zinc-800">{alt.name}</span>
+            </button>
+          ))}
+          {isSwapped && (
+            <button
+              type="button"
+              onClick={onRestore}
+              className="flex w-full items-center gap-2 border-t border-zinc-100 px-3 py-2.5 text-xs text-zinc-500 transition hover:bg-zinc-50"
+            >
+              <span className="text-base leading-none">↩</span> Restore original
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1274,6 +1317,23 @@ function BookmarkFilledIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4" aria-hidden>
       <path d="M6 3h12v18l-6-4-6 4V3z" />
+    </svg>
+  );
+}
+
+function MapPinIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4" aria-hidden>
+      <path d="M8 1.5C5.515 1.5 3.5 3.515 3.5 6c0 3.75 4.5 8.5 4.5 8.5S12.5 9.75 12.5 6c0-2.485-2.015-4.5-4.5-4.5z" />
+      <circle cx="8" cy="6" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5" aria-hidden>
+      <path d="M2 4h12M5 4V2.5h6V4M6 7v5M10 7v5M3 4l1 9h8l1-9" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
