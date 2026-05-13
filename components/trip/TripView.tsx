@@ -101,6 +101,15 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
   const [openChangeFor, setOpenChangeFor] = useState<string | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [detailStepId, setDetailStepId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  function guardAction(fn: () => void) {
+    if (activeUserId === "me") {
+      fn();
+    } else {
+      setPendingAction(() => fn);
+    }
+  }
 
   const activeUser: Friend =
     activeUserId === "me"
@@ -385,7 +394,11 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
       </div>
 
       {/* Side panel */}
-      <aside className="relative z-10 flex min-h-0 w-full flex-1 flex-col bg-white shadow-2xl lg:w-[460px] lg:flex-none">
+      <aside className={`relative z-10 flex min-h-0 w-full flex-1 flex-col shadow-2xl lg:w-[460px] lg:flex-none transition-all ${
+        activeUserId !== "me"
+          ? "bg-amber-50 border-t-4 border-t-amber-400 lg:border-t-0 lg:border-l-4 lg:border-l-amber-400"
+          : "bg-white"
+      }`}>
         <div className="min-h-0 flex-1 overflow-y-auto pb-36">
           {/* Cover (scrolls away) */}
           <div className="relative h-44 w-full overflow-hidden">
@@ -398,6 +411,22 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
               unoptimized
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/0" />
+            {activeUserId !== "me" && (
+              <div className="absolute inset-0 bg-amber-500/25" />
+            )}
+            {activeUserId !== "me" && (
+              <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-amber-400/90 px-3 py-1.5 backdrop-blur-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={activeUser.avatarUrl}
+                  alt={activeUser.name}
+                  className="h-5 w-5 rounded-full object-cover ring-1 ring-white/60"
+                />
+                <span className="text-xs font-semibold text-amber-950">
+                  {activeUser.name}'s view
+                </span>
+              </div>
+            )}
             <div className="absolute bottom-4 left-5 right-5 text-white">
               <h1 className="text-2xl font-semibold leading-tight">{trip.title}</h1>
               <p className="mt-1 text-sm text-white/80">{trip.subtitle}</p>
@@ -405,7 +434,33 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
           </div>
 
           {/* Sticky summary: trip meta + (user switcher) + day pills */}
-          <div className="sticky top-0 z-20 border-b border-zinc-200 bg-white/95 shadow-sm backdrop-blur">
+          <div className={`sticky top-0 z-20 border-b shadow-sm backdrop-blur ${
+            activeUserId !== "me"
+              ? "border-amber-200 bg-amber-50/95"
+              : "border-zinc-200 bg-white/95"
+          }`}>
+            {activeUserId !== "me" && (
+              <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={activeUser.avatarUrl}
+                    alt={activeUser.name}
+                    className="h-6 w-6 shrink-0 rounded-full object-cover ring-2 ring-amber-300"
+                  />
+                  <span className="truncate text-xs font-medium text-amber-900">
+                    Viewing <span className="font-semibold">{activeUser.name}</span>'s itinerary
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveUserId("me")}
+                  className="shrink-0 text-xs font-medium text-amber-700 underline underline-offset-2 transition hover:text-amber-900"
+                >
+                  Back to yours
+                </button>
+              </div>
+            )}
             <div className="flex items-center gap-3 px-5 py-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -584,9 +639,9 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                                 isChangeOpen={isOpen}
                                 alternatives={alts}
                                 onPickAlternative={(c) =>
-                                  applySwap(step.id, c)
+                                  guardAction(() => applySwap(step.id, c))
                                 }
-                                onRestore={() => restoreOriginal(step.id)}
+                                onRestore={() => guardAction(() => restoreOriginal(step.id))}
                                 onOpenDetail={() => setDetailStepId(step.id)}
                                 dragHandleProps={dragProps}
                               />
@@ -684,7 +739,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                     </button>
                     {hasAnyToCancel && (
                       <button
-                        onClick={() => setConfirmingCancel(true)}
+                        onClick={() => guardAction(() => setConfirmingCancel(true))}
                         className="rounded-full border border-rose-200 bg-white px-4 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-50"
                       >
                         Cancel selected
@@ -692,7 +747,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                     )}
                     {pendingConfirmable.length > 0 && (
                       <button
-                        onClick={confirmSelected}
+                        onClick={() => guardAction(confirmSelected)}
                         className="rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
                       >
                         Confirm selected
@@ -700,9 +755,9 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                     )}
                     {pendingBookable.length > 0 && (
                       <button
-                        onClick={() => {
+                        onClick={() => guardAction(() => {
                           router.push(`/explore/${trip.id}/book?steps=${pendingBookable.join(",")}`);
-                        }}
+                        })}
                         className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-emerald-700"
                       >
                         Book selected
@@ -715,6 +770,44 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
           );
         })()}
       </aside>
+
+      {/* Friend modification guard modal */}
+      {pendingAction && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center px-4 pb-6 sm:pb-0">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setPendingAction(null)} />
+          <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-3 flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-amber-600" aria-hidden>
+                  <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h2 className="text-base font-semibold text-zinc-900">Are you sure?</h2>
+            </div>
+            <p className="text-sm text-zinc-600 leading-relaxed">
+              You are modifying the itinerary of{" "}
+              <span className="font-semibold text-zinc-900">{activeUser.name}</span>.
+              This will affect their view of the trip.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingAction(null)}
+                className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-400"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => { pendingAction(); setPendingAction(null); }}
+                className="rounded-full bg-amber-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-600"
+              >
+                Yes, proceed
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
