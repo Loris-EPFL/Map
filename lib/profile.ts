@@ -23,6 +23,7 @@ export type Interest =
 export type Profile = {
   id: string;
   label: string;
+  tripTypes: string[];
   name: string;
   age: number | "";
   homeCity: string;
@@ -43,6 +44,7 @@ export type ProfileStore = {
 export const PROFILE_KEY = "atlas.profile";
 
 export const emptyProfileFields: Omit<Profile, "id" | "label"> = {
+  tripTypes: [],
   name: "",
   age: "",
   homeCity: "",

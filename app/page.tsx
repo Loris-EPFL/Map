@@ -73,10 +73,10 @@ export default function Home() {
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-64 bg-gradient-to-t from-[#04060f]/70 via-[#04060f]/20 to-transparent" />
 
       <header className="relative z-10 flex items-center justify-between px-6 py-5 sm:px-8 sm:py-6">
-        <div className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2">
           <div className="h-7 w-7 rounded-full bg-gradient-to-br from-cyan-300 to-violet-500" />
           <span className="text-lg font-semibold tracking-tight">atlas</span>
-        </div>
+        </Link>
         <nav className="hidden items-center gap-6 text-sm text-white/70 sm:flex">
           <Link className="hover:text-white" href="/browse">Browse</Link>
           <Link className="hover:text-white" href="/discover">Discover</Link>

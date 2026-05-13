@@ -75,12 +75,11 @@ export default function TripsView() {
           <div className="h-6 w-6 rounded-full bg-gradient-to-br from-cyan-300 to-violet-500" />
           <span className="text-base font-semibold tracking-tight">atlas</span>
         </Link>
-        <Link
-          href="/"
-          className="text-sm text-zinc-500 transition hover:text-zinc-900"
-        >
-          ← Home
-        </Link>
+        <nav className="flex items-center gap-4 text-sm text-zinc-500 sm:gap-6">
+          <Link className="transition hover:text-zinc-900" href="/browse">Browse</Link>
+          <Link className="transition hover:text-zinc-900" href="/discover">Discover</Link>
+          <Link className="transition hover:text-zinc-900" href="/trips">Trips</Link>
+        </nav>
       </header>
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-10 sm:px-8 sm:py-14">
@@ -338,25 +337,14 @@ function TripCard({
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Link
               href={`/explore/${userTrip.baseTripId}`}
-              className="rounded-full bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-zinc-700"
+              className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-700"
             >
               Open
             </Link>
             <button
               type="button"
-              onClick={onStartRename}
-              className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:border-zinc-400"
-            >
-              Rename
-            </button>
-            <button
-              type="button"
               onClick={onToggleStatus}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                completed
-                  ? "border border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400"
-                  : "bg-emerald-600 text-white hover:bg-emerald-700"
-              }`}
+              className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:border-zinc-400"
             >
               {completed ? "Mark as planning" : "Mark complete"}
             </button>

@@ -68,15 +68,9 @@ export default function BrowseView({ trips }: { trips: Trip[] }) {
           <span className="text-lg font-semibold tracking-tight">atlas</span>
         </Link>
         <nav className="flex items-center gap-4 text-sm text-white/70 sm:gap-6">
-          <Link className="hidden hover:text-white sm:inline" href="/discover">
-            Discover
-          </Link>
-          <Link className="hidden hover:text-white sm:inline" href="/trips">
-            Trips
-          </Link>
-          <Link className="hover:text-white" href="/">
-            Home
-          </Link>
+          <Link className="transition hover:text-white" href="/browse">Browse</Link>
+          <Link className="transition hover:text-white" href="/discover">Discover</Link>
+          <Link className="transition hover:text-white" href="/trips">Trips</Link>
         </nav>
       </header>
 

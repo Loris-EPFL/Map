@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createEmptyStore,
-  createProfile,
+
   loadStore,
   saveStore,
   clearStore,
@@ -76,7 +76,6 @@ export default function ProfileForm() {
   const [store, setStore] = useState<ProfileStore>(() => createEmptyStore());
   const [hydrated, setHydrated] = useState(false);
   const [status, setStatus] = useState<"idle" | "saved">("idle");
-  const [showNewPresets, setShowNewPresets] = useState(false);
 
   useEffect(() => {
     const existing = loadStore();
@@ -102,20 +101,6 @@ export default function ProfileForm() {
         p.id === activeProfile.id ? { ...p, [key]: value } : p
       ),
     }));
-  }
-
-  function switchTo(profileId: string) {
-    setStore((prev) => ({ ...prev, activeProfileId: profileId }));
-    setShowNewPresets(false);
-  }
-
-  function addProfile(label: string) {
-    const fresh = createProfile(label);
-    setStore((prev) => ({
-      profiles: [...prev.profiles, fresh],
-      activeProfileId: fresh.id,
-    }));
-    setShowNewPresets(false);
   }
 
   function deleteActive() {
@@ -148,71 +133,10 @@ export default function ProfileForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      {/* Profile selector */}
-      <section>
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-            Trip profiles
-          </h2>
-          <span className="text-xs text-zinc-400">
-            {store.profiles.length} saved
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {store.profiles.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => switchTo(p.id)}
-              className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                p.id === activeProfile.id
-                  ? "border-zinc-900 bg-zinc-900 text-white"
-                  : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400"
-              }`}
-            >
-              {p.label || "Untitled"}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => setShowNewPresets((v) => !v)}
-            className="rounded-full border border-dashed border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:border-zinc-500 hover:text-zinc-900"
-          >
-            + New profile
-          </button>
-        </div>
-        {showNewPresets && (
-          <div className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50/60 p-3">
-            <div className="mb-2 text-xs text-zinc-500">
-              Start a new profile — pick a preset label or blank.
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {PRESET_LABELS.map((label) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => addProfile(label)}
-                  className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:border-zinc-400"
-                >
-                  {label}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => addProfile("New trip")}
-                className="rounded-full bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-zinc-700"
-              >
-                Blank profile
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* Active profile label */}
+      {/* Trip name */}
       <section>
         <h2 className="mb-3 text-xs uppercase tracking-[0.2em] text-zinc-500">
-          What kind of trip is this?
+          Name your trip
         </h2>
         <div className="flex flex-wrap items-stretch gap-2">
           <input
@@ -231,6 +155,25 @@ export default function ProfileForm() {
               Delete profile
             </button>
           )}
+        </div>
+      </section>
+
+      {/* Trip profiles */}
+      <section>
+        <h2 className="mb-1 text-xs uppercase tracking-[0.2em] text-zinc-500">
+          Trip profiles
+        </h2>
+        <p className="mb-3 text-xs text-zinc-400">Pick as many as you like.</p>
+        <div className="flex flex-wrap gap-2">
+          {PRESET_LABELS.map((preset) => (
+            <Chip
+              key={preset}
+              selected={(activeProfile.tripTypes ?? []).includes(preset)}
+              onClick={() => update("tripTypes", toggle(activeProfile.tripTypes ?? [], preset))}
+            >
+              {preset}
+            </Chip>
+          ))}
         </div>
       </section>
 

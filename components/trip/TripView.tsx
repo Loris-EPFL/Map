@@ -500,15 +500,15 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                 </button>
               </div>
             )}
-            <div className="flex items-center gap-3 px-5 py-3">
+            <div className="flex items-start gap-3 px-5 py-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={trip.author.avatarUrl}
                 alt={trip.author.name}
-                className="h-8 w-8 shrink-0 rounded-full object-cover"
+                className="mt-0.5 h-8 w-8 shrink-0 rounded-full object-cover"
               />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold">{trip.title}</div>
+                <div className="truncate text-sm font-semibold">by {trip.author.name}</div>
                 <div className="text-xs text-zinc-500">
                   {trip.durationDays} days · {totalSteps} stops
                   {bookedCount > 0 ? (
@@ -528,8 +528,13 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                     </>
                   ) : null}
                 </div>
+                {trip.guideNote && (
+                  <p className="mt-1 text-xs italic leading-relaxed text-zinc-500">
+                    &ldquo;{trip.guideNote}&rdquo;
+                  </p>
+                )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-start gap-2">
                 <SaveTripButton baseTripId={trip.id} title={trip.title} onSave={() => setTripSaved(true)} />
                 <div className="relative">
                   <button
@@ -1049,51 +1054,47 @@ function StepRow({
         </div>
       </div>
 
-      {/* Action row: Trash + Select (left) + Change / Book/Confirm (right) */}
-      <div className="flex items-center justify-between gap-2 px-2 pb-2">
+      {/* Action row */}
+      <div className="flex items-center gap-2 px-2 pb-2">
+        {isBooked ? (
+          <span className="text-[11px] font-medium text-emerald-600">Booked ✓</span>
+        ) : isConfirmed ? (
+          <span className="text-[11px] font-medium text-indigo-600">Confirmed ✓</span>
+        ) : isConfirmable ? (
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-full bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-zinc-700"
+          >
+            Confirm
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onBook}
+            className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-700"
+          >
+            Book
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onToggleChange}
+          className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+            isChangeOpen
+              ? "bg-zinc-900 text-white"
+              : "border border-zinc-200 text-zinc-600 hover:border-zinc-400 hover:text-zinc-900"
+          }`}
+        >
+          Change
+        </button>
         <button
           type="button"
           onClick={onDelete}
-          aria-label="Delete stop"
-          title="Delete stop"
-          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-zinc-300 transition hover:bg-rose-50 hover:text-rose-500"
+          className="ml-auto rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-50"
         >
-          <TrashIcon />
+          Delete
         </button>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onToggleChange}
-            className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
-              isChangeOpen
-                ? "bg-zinc-900 text-white"
-                : "border border-zinc-200 text-zinc-600 hover:border-zinc-400 hover:text-zinc-900"
-            }`}
-          >
-            Change
-          </button>
-          {isBooked ? (
-            <span className="text-[11px] font-medium text-emerald-600">Booked ✓</span>
-          ) : isConfirmed ? (
-            <span className="text-[11px] font-medium text-indigo-600">Confirmed ✓</span>
-          ) : isConfirmable ? (
-            <button
-              type="button"
-              onClick={onConfirm}
-              className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
-            >
-              Confirm
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onBook}
-              className="rounded-full bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-emerald-700"
-            >
-              Book
-            </button>
-          )}
-        </div>
       </div>
 
       {/* Alternatives panel */}
