@@ -77,11 +77,21 @@ function tripGeoJSON(
   return { type: "FeatureCollection", features: lines };
 }
 
+function getTripPhotos(trip: Trip): string[] {
+  const stepPhotos = trip.days
+    .flatMap((d) => d.steps)
+    .filter((s) => ["viewpoint", "activity", "restaurant"].includes(s.kind))
+    .slice(0, 3)
+    .map((s) => s.imageUrl);
+  return [trip.coverImageUrl, ...stepPhotos].slice(0, 4);
+}
+
 export default function MapCanvas(props: MapClientProps) {
   const router = useRouter();
   const mapRef = useRef<MapRef>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
+  const [photoIdx, setPhotoIdx] = useState(0);
   const onStepClick = props.mode === "itinerary" ? props.onStepClick : undefined;
   const openStepId =
     props.mode === "itinerary" ? props.openStepId : undefined;
@@ -235,6 +245,7 @@ export default function MapCanvas(props: MapClientProps) {
             onClick={(e) => {
               e.originalEvent.stopPropagation();
               setActiveTrip(t);
+              setPhotoIdx(0);
             }}
           >
             <TripPin
@@ -245,49 +256,91 @@ export default function MapCanvas(props: MapClientProps) {
           </Marker>
         ))}
 
-      {isGlobe && activeTrip && (
-        <Popup
-          longitude={activeTrip.startLng}
-          latitude={activeTrip.startLat}
-          anchor="bottom"
-          offset={56}
-          closeButton={false}
-          maxWidth="280px"
-          onClose={() => setActiveTrip(null)}
-          className="trip-popup"
-        >
-          <div className="w-64 p-1">
-            <div className="overflow-hidden rounded-lg">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={activeTrip.coverImageUrl}
-                alt={activeTrip.title}
-                className="h-32 w-full object-cover"
-              />
-            </div>
-            <div className="px-1 pt-2">
-              <div className="text-sm font-semibold text-zinc-900">
-                {activeTrip.title}
+      {isGlobe && activeTrip && (() => {
+        const photos = getTripPhotos(activeTrip);
+        const total = photos.length;
+        return (
+          <Popup
+            longitude={activeTrip.startLng}
+            latitude={activeTrip.startLat}
+            anchor="bottom"
+            offset={56}
+            closeButton={false}
+            maxWidth="300px"
+            onClose={() => setActiveTrip(null)}
+            className="trip-popup"
+          >
+            <div className="w-72 overflow-hidden rounded-xl">
+              {/* Photo gallery */}
+              <div className="relative h-44 w-full overflow-hidden bg-zinc-100">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  key={photos[photoIdx]}
+                  src={photos[photoIdx]}
+                  alt={activeTrip.title}
+                  className="h-full w-full object-cover"
+                />
+                {/* Prev / Next */}
+                {total > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setPhotoIdx((i) => (i - 1 + total) % total); }}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition hover:bg-black/60"
+                      aria-label="Previous photo"
+                    >
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5" aria-hidden><path d="M10.5 3L5.5 8l5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setPhotoIdx((i) => (i + 1) % total); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition hover:bg-black/60"
+                      aria-label="Next photo"
+                    >
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5" aria-hidden><path d="M5.5 3l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>
+                    </button>
+                  </>
+                )}
+                {/* Dot indicators */}
+                {total > 1 && (
+                  <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-1.5">
+                    {photos.map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setPhotoIdx(i); }}
+                        className={`h-1.5 rounded-full transition-all ${i === photoIdx ? "w-4 bg-white" : "w-1.5 bg-white/50"}`}
+                        aria-label={`Photo ${i + 1}`}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="text-xs text-zinc-500">
-                {activeTrip.durationDays} days · by {activeTrip.author.name}
+
+              {/* Text content */}
+              <div className="px-3 pb-3 pt-2.5">
+                <div className="text-sm font-semibold text-zinc-900 leading-snug">
+                  {activeTrip.title}
+                </div>
+                <div className="mt-0.5 text-[11px] text-zinc-400">
+                  {activeTrip.durationDays} days · by {activeTrip.author.name}
+                </div>
+                {activeTrip.guideNote && (
+                  <p className="mt-2 text-xs leading-relaxed text-zinc-600 italic">
+                    "{activeTrip.guideNote}"
+                  </p>
+                )}
+                <button
+                  onClick={() => handlePinClick(activeTrip.id, activeTrip.startLng, activeTrip.startLat)}
+                  className="mt-3 w-full rounded-full bg-zinc-900 py-2 text-xs font-medium text-white transition hover:bg-zinc-700"
+                >
+                  Open itinerary →
+                </button>
               </div>
-              <button
-                onClick={() =>
-                  handlePinClick(
-                    activeTrip.id,
-                    activeTrip.startLng,
-                    activeTrip.startLat
-                  )
-                }
-                className="mt-3 w-full rounded-full bg-zinc-900 py-2 text-xs font-medium text-white transition hover:bg-zinc-700"
-              >
-                Open itinerary →
-              </button>
             </div>
-          </div>
-        </Popup>
-      )}
+          </Popup>
+        );
+      })()}
 
       {!isGlobe && tripData && (
         <Source id="trip" type="geojson" data={tripData}>

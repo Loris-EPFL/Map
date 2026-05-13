@@ -49,6 +49,7 @@ export type Trip = {
   id: string;
   title: string;
   subtitle: string;
+  guideNote?: string;
   author: TripAuthor;
   coverImageUrl: string;
   startLng: number;
