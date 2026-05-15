@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getTripById } from "@/lib/mock/trips";
+import { loadBookedStepIds } from "@/lib/bookings";
 import type { Trip } from "@/lib/mock/types";
 import {
   deleteUserTrip,
@@ -254,8 +255,12 @@ function TripCard({
   onCancelDelete,
 }: TripCardProps) {
   const completed = userTrip.status === "completed";
-  const totalStops =
-    base?.days.reduce((acc, d) => acc + d.steps.length, 0) ?? 0;
+  const allStepIds =
+    base?.days.flatMap((d) => d.steps.map((s) => s.id)) ?? [];
+  const totalStops = allStepIds.length;
+  const bookedSet = new Set(loadBookedStepIds(userTrip.baseTripId));
+  const bookedCount = allStepIds.filter((id) => bookedSet.has(id)).length;
+  const fullyBooked = totalStops > 0 && bookedCount === totalStops;
 
   return (
     <li
@@ -326,10 +331,23 @@ function TripCard({
               {userTrip.name}
             </button>
           )}
-          <div className="mt-1 text-xs text-zinc-500">
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500">
             <StatusPill status={userTrip.status} />
+            {base && !completed && !fullyBooked && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                <span aria-hidden>⚠</span>
+                {bookedCount === 0
+                  ? "Nothing booked yet"
+                  : `Not fully booked · ${bookedCount}/${totalStops}`}
+              </span>
+            )}
+            {base && fullyBooked && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                <span aria-hidden>✓</span> All booked
+              </span>
+            )}
             {base && (
-              <span className="ml-2">
+              <span>
                 {base.durationDays} days · {totalStops} stops · based on {base.title}
               </span>
             )}

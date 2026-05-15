@@ -77,6 +77,28 @@ function tripGeoJSON(
   return { type: "FeatureCollection", features: lines };
 }
 
+// On a globe projection, markers on the far hemisphere are still rendered and
+// clickable (they "bleed through" the transparent sphere). A point is on the
+// visible front only if its great-circle angle from the point facing the
+// camera (the map center) is under ~90°. A small positive margin keeps
+// near-the-limb pins from being clicked.
+const FRONT_THRESHOLD = 0.05;
+
+function isFrontFacing(
+  lng: number,
+  lat: number,
+  center: { lng: number; lat: number }
+): boolean {
+  const toRad = Math.PI / 180;
+  const lat1 = center.lat * toRad;
+  const lat2 = lat * toRad;
+  const dLng = (lng - center.lng) * toRad;
+  const cosAngle =
+    Math.sin(lat1) * Math.sin(lat2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  return cosAngle > FRONT_THRESHOLD;
+}
+
 function getTripPhotos(trip: Trip): string[] {
   const stepPhotos = trip.days
     .flatMap((d) => d.steps)
@@ -92,6 +114,7 @@ export default function MapCanvas(props: MapClientProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
   const [photoIdx, setPhotoIdx] = useState(0);
+  const [center, setCenter] = useState({ lng: 10, lat: 25 });
   const onStepClick = props.mode === "itinerary" ? props.onStepClick : undefined;
   const openStepId =
     props.mode === "itinerary" ? props.openStepId : undefined;
@@ -227,16 +250,45 @@ export default function MapCanvas(props: MapClientProps) {
       projection="globe"
       maxPitch={70}
       cursor={addingStep ? "crosshair" : undefined}
+      onMove={
+        isGlobe
+          ? (e) =>
+              setCenter({
+                lng: e.viewState.longitude,
+                lat: e.viewState.latitude,
+              })
+          : undefined
+      }
       onClick={
         addingStep && onMapPick
           ? (e) => onMapPick(e.lngLat.lng, e.lngLat.lat)
           : undefined
       }
+      onError={(evt) => {
+        // The public OpenFreeMap tile CDN intermittently fails or rate-limits
+        // individual tile requests ("AJAXError: Load failed"). MapLibre retries
+        // these on its own, so swallow them instead of letting the error bubble
+        // up as a fatal app/overlay error. Real (non-tile) errors still log.
+        const err = (evt as { error?: Error }).error;
+        const msg = err?.message ?? "";
+        if (
+          err?.name === "AJAXError" ||
+          /AJAXError|Load failed|Failed to fetch/i.test(msg)
+        ) {
+          console.warn("Map tile failed to load (will retry):", msg);
+          return;
+        }
+        console.error("Map error:", err ?? evt);
+      }}
       style={{ position: "absolute", inset: 0 }}
       attributionControl={{ compact: true }}
     >
       {isGlobe &&
-        props.trips.map((t) => (
+        props.trips.map((t) => {
+          // Skip pins on the back of the globe so they can't be clicked
+          // through the transparent sphere.
+          if (!isFrontFacing(t.startLng, t.startLat, center)) return null;
+          return (
           <Marker
             key={t.id}
             longitude={t.startLng}
@@ -254,9 +306,13 @@ export default function MapCanvas(props: MapClientProps) {
               onHover={(h) => setHovered(h ? t.id : null)}
             />
           </Marker>
-        ))}
+          );
+        })}
 
-      {isGlobe && activeTrip && (() => {
+      {isGlobe &&
+        activeTrip &&
+        isFrontFacing(activeTrip.startLng, activeTrip.startLat, center) &&
+        (() => {
         const photos = getTripPhotos(activeTrip);
         const total = photos.length;
         return (
