@@ -498,6 +498,389 @@ const rawTrips: Trip[] = [
       },
     ],
   },
+  {
+    id: "patagonia-w-trek",
+    title: "Patagonia: The W Trek",
+    subtitle: "Five days through Torres del Paine",
+    guideNote: "Weather changes by the hour here — start the Base Torres climb before sunrise and you might get the towers glowing red with nobody else around. Pack layers you can shed; the wind does half the work of exhausting you.",
+    author: { name: "Camila Rivas", avatarUrl: avatar("camila") },
+    coverImageUrl: img("patagonia-cover", 1200, 800),
+    startLng: -72.5064,
+    startLat: -51.7236,
+    durationDays: 5,
+    days: [
+      {
+        dayNumber: 1,
+        date: "Nov 09",
+        title: "Arrival in Puerto Natales",
+        steps: [
+          { id: "pw-1-1", kind: "airport", name: "Punta Arenas Airport (PUQ)", lng: -70.8546, lat: -53.0028, time: "10:00", imageUrl: img("puq"), notes: "Bus transfer north to Puerto Natales." },
+          { id: "pw-1-2", kind: "hotel", name: "The Singular Patagonia", lng: -72.5064, lat: -51.7236, time: "14:00", imageUrl: img("singular-patagonia") },
+          { id: "pw-1-3", kind: "viewpoint", name: "Mirador Última Esperanza", lng: -72.5100, lat: -51.7280, time: "17:30", imageUrl: img("ultima-esperanza") },
+        ],
+      },
+      {
+        dayNumber: 2,
+        date: "Nov 10",
+        title: "Grey Glacier",
+        steps: [
+          { id: "pw-2-1", kind: "transport", name: "Pudeto Catamaran", lng: -72.9667, lat: -51.0833, time: "09:00", imageUrl: img("pudeto") },
+          { id: "pw-2-2", kind: "hotel", name: "Refugio Paine Grande", lng: -73.0072, lat: -51.0686, time: "11:00", imageUrl: img("paine-grande") },
+          { id: "pw-2-3", kind: "viewpoint", name: "Grey Glacier Lookout", lng: -73.1900, lat: -51.0000, time: "15:00", imageUrl: img("grey-glacier"), notes: "Icebergs calving into Lago Grey." },
+        ],
+      },
+      {
+        dayNumber: 3,
+        date: "Nov 11",
+        title: "French Valley",
+        steps: [
+          { id: "pw-3-1", kind: "activity", name: "Valle del Francés trail", lng: -72.9333, lat: -50.9667, time: "08:30", imageUrl: img("valle-frances") },
+          { id: "pw-3-2", kind: "viewpoint", name: "Mirador Británico", lng: -72.9280, lat: -50.9550, time: "12:00", imageUrl: img("mirador-britanico") },
+          { id: "pw-3-3", kind: "hotel", name: "Refugio Los Cuernos", lng: -72.8540, lat: -50.9930, time: "17:00", imageUrl: img("los-cuernos") },
+        ],
+      },
+      {
+        dayNumber: 4,
+        date: "Nov 12",
+        title: "Base of the Towers",
+        steps: [
+          { id: "pw-4-1", kind: "activity", name: "Ascencio Valley trail", lng: -72.9500, lat: -50.9600, time: "05:30", imageUrl: img("ascencio") },
+          { id: "pw-4-2", kind: "viewpoint", name: "Mirador Las Torres", lng: -72.9870, lat: -50.9420, time: "08:00", imageUrl: img("las-torres"), notes: "Sunrise on the granite towers." },
+          { id: "pw-4-3", kind: "hotel", name: "Hotel Las Torres", lng: -72.9760, lat: -50.9900, time: "15:00", imageUrl: img("hotel-las-torres") },
+        ],
+      },
+      {
+        dayNumber: 5,
+        date: "Nov 13",
+        title: "Return",
+        steps: [
+          { id: "pw-5-1", kind: "transport", name: "Transfer to Puerto Natales", lng: -72.5064, lat: -51.7236, time: "09:00", imageUrl: img("pn-return") },
+          { id: "pw-5-2", kind: "airport", name: "Punta Arenas Airport (PUQ)", lng: -70.8546, lat: -53.0028, time: "15:00", imageUrl: img("puq-out") },
+        ],
+      },
+    ],
+  },
+  {
+    id: "kyoto-temples",
+    title: "Kyoto: Temples & Tea",
+    subtitle: "Four quiet days in old Japan",
+    guideNote: "Kyoto is spread out and deceptively slow to cross — group the temples by district like the locals do. Fushimi Inari at 7am is a different shrine entirely; by 10 it's a queue.",
+    author: { name: "Haruki Saito", avatarUrl: avatar("haruki") },
+    coverImageUrl: img("kyoto-cover", 1200, 800),
+    startLng: 135.7587,
+    startLat: 34.9858,
+    durationDays: 4,
+    days: [
+      {
+        dayNumber: 1,
+        date: "Nov 18",
+        title: "Fushimi Inari & Gion",
+        steps: [
+          { id: "ky-1-1", kind: "airport", name: "Kansai Airport (KIX)", lng: 135.2441, lat: 34.4347, time: "09:00", imageUrl: img("kix"), notes: "Haruka express into Kyoto." },
+          { id: "ky-1-2", kind: "hotel", name: "Hotel near Kyoto Station", lng: 135.7587, lat: 34.9858, time: "11:30", imageUrl: img("kyoto-hotel") },
+          { id: "ky-1-3", kind: "activity", name: "Fushimi Inari Taisha", lng: 135.7727, lat: 34.9671, time: "14:00", imageUrl: img("fushimi-inari"), notes: "Walk the torii tunnel up Mt. Inari." },
+          { id: "ky-1-4", kind: "viewpoint", name: "Gion after dark", lng: 135.7752, lat: 35.0037, time: "19:00", imageUrl: img("gion") },
+        ],
+      },
+      {
+        dayNumber: 2,
+        date: "Nov 19",
+        title: "Arashiyama",
+        steps: [
+          { id: "ky-2-1", kind: "viewpoint", name: "Arashiyama Bamboo Grove", lng: 135.6716, lat: 35.0170, time: "08:30", imageUrl: img("bamboo-grove") },
+          { id: "ky-2-2", kind: "activity", name: "Tenryū-ji Temple", lng: 135.6738, lat: 35.0156, time: "10:00", imageUrl: img("tenryuji") },
+          { id: "ky-2-3", kind: "viewpoint", name: "Togetsukyo Bridge", lng: 135.6779, lat: 35.0131, time: "12:00", imageUrl: img("togetsukyo") },
+          { id: "ky-2-4", kind: "restaurant", name: "Kaiseki lunch, Arashiyama", lng: 135.6770, lat: 35.0145, time: "13:30", imageUrl: img("kaiseki") },
+        ],
+      },
+      {
+        dayNumber: 3,
+        date: "Nov 20",
+        title: "Golden Pavilion & Zen",
+        steps: [
+          { id: "ky-3-1", kind: "activity", name: "Kinkaku-ji (Golden Pavilion)", lng: 135.7292, lat: 35.0394, time: "09:00", imageUrl: img("kinkakuji") },
+          { id: "ky-3-2", kind: "activity", name: "Ryōan-ji rock garden", lng: 135.7183, lat: 35.0345, time: "11:00", imageUrl: img("ryoanji") },
+          { id: "ky-3-3", kind: "restaurant", name: "Nishiki Market food walk", lng: 135.7649, lat: 35.0050, time: "14:00", imageUrl: img("nishiki") },
+        ],
+      },
+      {
+        dayNumber: 4,
+        date: "Nov 21",
+        title: "Higashiyama & flight",
+        steps: [
+          { id: "ky-4-1", kind: "activity", name: "Kiyomizu-dera", lng: 135.7850, lat: 34.9948, time: "08:00", imageUrl: img("kiyomizu") },
+          { id: "ky-4-2", kind: "viewpoint", name: "Philosopher's Path", lng: 135.7947, lat: 35.0270, time: "10:30", imageUrl: img("philosophers-path") },
+          { id: "ky-4-3", kind: "airport", name: "Kansai Airport (KIX)", lng: 135.2441, lat: 34.4347, time: "16:00", imageUrl: img("kix-out") },
+        ],
+      },
+    ],
+  },
+  {
+    id: "sahara-merzouga",
+    title: "Sahara: Fez to the Dunes",
+    subtitle: "Four days to the Erg Chebbi sea of sand",
+    guideNote: "The drive is the trip — don't treat it as transit. Cedar forests, Berber villages, the Ziz palm valley. Ride the camels at dawn, not sunset; the light is softer and the dunes are yours.",
+    author: { name: "Yusuf El Idrissi", avatarUrl: avatar("yusuf") },
+    coverImageUrl: img("sahara-cover", 1200, 800),
+    startLng: -4.9733,
+    startLat: 34.0617,
+    durationDays: 4,
+    days: [
+      {
+        dayNumber: 1,
+        date: "Oct 03",
+        title: "Fez medina",
+        steps: [
+          { id: "sa-1-1", kind: "airport", name: "Fès–Saïss Airport (FEZ)", lng: -4.9779, lat: 33.9273, time: "11:00", imageUrl: img("fez-airport") },
+          { id: "sa-1-2", kind: "hotel", name: "Riad in Fez el-Bali", lng: -4.9733, lat: 34.0617, time: "13:00", imageUrl: img("fez-riad") },
+          { id: "sa-1-3", kind: "activity", name: "Bab Bou Jeloud & tanneries", lng: -4.9826, lat: 34.0636, time: "16:00", imageUrl: img("fez-tanneries") },
+        ],
+      },
+      {
+        dayNumber: 2,
+        date: "Oct 04",
+        title: "Over the Atlas",
+        steps: [
+          { id: "sa-2-1", kind: "viewpoint", name: "Ifrane cedar forest", lng: -5.1106, lat: 33.5273, time: "09:30", imageUrl: img("ifrane"), notes: "Barbary macaques in the cedars." },
+          { id: "sa-2-2", kind: "viewpoint", name: "Ziz Valley overlook", lng: -4.2667, lat: 31.9333, time: "14:00", imageUrl: img("ziz-valley") },
+          { id: "sa-2-3", kind: "hotel", name: "Erg Chebbi desert camp", lng: -3.9772, lat: 31.0995, time: "18:30", imageUrl: img("erg-chebbi-camp") },
+        ],
+      },
+      {
+        dayNumber: 3,
+        date: "Oct 05",
+        title: "Erg Chebbi",
+        steps: [
+          { id: "sa-3-1", kind: "activity", name: "Sunrise camel trek", lng: -3.9772, lat: 31.0995, time: "06:00", imageUrl: img("camel-trek") },
+          { id: "sa-3-2", kind: "activity", name: "Khamlia Gnawa music village", lng: -4.0072, lat: 31.0561, time: "11:00", imageUrl: img("khamlia") },
+          { id: "sa-3-3", kind: "viewpoint", name: "Dune bivouac, starlit dinner", lng: -3.9800, lat: 31.1020, time: "20:00", imageUrl: img("dune-bivouac") },
+        ],
+      },
+      {
+        dayNumber: 4,
+        date: "Oct 06",
+        title: "Out via Errachidia",
+        steps: [
+          { id: "sa-4-1", kind: "transport", name: "Drive to Errachidia", lng: -4.4240, lat: 31.9314, time: "09:00", imageUrl: img("errachidia-drive") },
+          { id: "sa-4-2", kind: "airport", name: "Moulay Ali Cherif (ERH)", lng: -4.3983, lat: 31.9475, time: "13:00", imageUrl: img("erh") },
+        ],
+      },
+    ],
+  },
+  {
+    id: "maldives-atolls",
+    title: "Maldives: North Malé Atoll",
+    subtitle: "Four slow days over turquoise water",
+    guideNote: "The house reef is the whole point — snorkel it at slack tide, early, before the boats stir the sand. Don't over-plan; the Maldives rewards doing almost nothing, beautifully.",
+    author: { name: "Aisha Naseem", avatarUrl: avatar("aisha") },
+    coverImageUrl: img("maldives-cover", 1200, 800),
+    startLng: 73.4000,
+    startLat: 4.3000,
+    durationDays: 4,
+    days: [
+      {
+        dayNumber: 1,
+        date: "Feb 12",
+        title: "Seaplane in",
+        steps: [
+          { id: "md-1-1", kind: "airport", name: "Velana Intl Airport (MLE)", lng: 73.5286, lat: 4.1918, time: "12:00", imageUrl: img("male-airport") },
+          { id: "md-1-2", kind: "transport", name: "Seaplane transfer", lng: 73.5290, lat: 4.2200, time: "13:30", imageUrl: img("seaplane"), notes: "20 minutes over the atolls." },
+          { id: "md-1-3", kind: "hotel", name: "Overwater villa", lng: 73.4000, lat: 4.3000, time: "14:30", imageUrl: img("overwater-villa") },
+        ],
+      },
+      {
+        dayNumber: 2,
+        date: "Feb 13",
+        title: "Reef & sandbank",
+        steps: [
+          { id: "md-2-1", kind: "activity", name: "House reef snorkel", lng: 73.4010, lat: 4.3010, time: "08:00", imageUrl: img("house-reef") },
+          { id: "md-2-2", kind: "viewpoint", name: "Sandbank picnic", lng: 73.3800, lat: 4.3200, time: "12:00", imageUrl: img("sandbank") },
+          { id: "md-2-3", kind: "activity", name: "Sunset dolphin cruise", lng: 73.4100, lat: 4.2900, time: "17:30", imageUrl: img("dolphin-cruise") },
+        ],
+      },
+      {
+        dayNumber: 3,
+        date: "Feb 14",
+        title: "Spa & manta point",
+        steps: [
+          { id: "md-3-1", kind: "activity", name: "Overwater spa pavilion", lng: 73.4005, lat: 4.3005, time: "10:00", imageUrl: img("overwater-spa") },
+          { id: "md-3-2", kind: "activity", name: "Manta Point dive", lng: 73.3500, lat: 4.3500, time: "14:00", imageUrl: img("manta-point") },
+          { id: "md-3-3", kind: "restaurant", name: "Beach dinner under lanterns", lng: 73.4000, lat: 4.2995, time: "20:00", imageUrl: img("beach-dinner") },
+        ],
+      },
+      {
+        dayNumber: 4,
+        date: "Feb 15",
+        title: "Back to Malé",
+        steps: [
+          { id: "md-4-1", kind: "transport", name: "Seaplane to Malé", lng: 73.5290, lat: 4.2200, time: "11:00", imageUrl: img("seaplane-out") },
+          { id: "md-4-2", kind: "airport", name: "Velana Intl Airport (MLE)", lng: 73.5286, lat: 4.1918, time: "13:00", imageUrl: img("male-out") },
+        ],
+      },
+    ],
+  },
+  {
+    id: "norway-fjords",
+    title: "Norway: Bergen & the Fjords",
+    subtitle: "Four days of rail, water, and granite",
+    guideNote: "The Flåm Railway and the Nærøyfjord cruise are the headline, but Stegastein at golden hour is the shot you'll remember. Sit on the left of the train out of Myrdal.",
+    author: { name: "Ingrid Halvorsen", avatarUrl: avatar("ingrid") },
+    coverImageUrl: img("norway-cover", 1200, 800),
+    startLng: 5.3221,
+    startLat: 60.3975,
+    durationDays: 4,
+    days: [
+      {
+        dayNumber: 1,
+        date: "Jun 20",
+        title: "Bergen",
+        steps: [
+          { id: "nf-1-1", kind: "airport", name: "Bergen Airport Flesland (BGO)", lng: 5.2181, lat: 60.2934, time: "10:00", imageUrl: img("bergen-airport") },
+          { id: "nf-1-2", kind: "hotel", name: "Hotel on Bryggen wharf", lng: 5.3221, lat: 60.3975, time: "12:00", imageUrl: img("bryggen-hotel") },
+          { id: "nf-1-3", kind: "viewpoint", name: "Mount Fløyen funicular", lng: 5.3300, lat: 60.3937, time: "15:00", imageUrl: img("floyen") },
+        ],
+      },
+      {
+        dayNumber: 2,
+        date: "Jun 21",
+        title: "Rail to the fjord",
+        steps: [
+          { id: "nf-2-1", kind: "transport", name: "Bergen Railway to Voss", lng: 6.4154, lat: 60.6296, time: "08:30", imageUrl: img("bergen-railway") },
+          { id: "nf-2-2", kind: "transport", name: "Bus to Gudvangen", lng: 6.8392, lat: 60.8717, time: "10:30", imageUrl: img("gudvangen-bus") },
+          { id: "nf-2-3", kind: "viewpoint", name: "Nærøyfjord cruise", lng: 7.0000, lat: 60.9000, time: "12:00", imageUrl: img("naroyfjord"), notes: "UNESCO fjord, cliffs straight out of the water." },
+          { id: "nf-2-4", kind: "hotel", name: "Fretheim Hotel, Flåm", lng: 7.1136, lat: 60.8625, time: "16:00", imageUrl: img("fretheim") },
+        ],
+      },
+      {
+        dayNumber: 3,
+        date: "Jun 22",
+        title: "Flåm Railway",
+        steps: [
+          { id: "nf-3-1", kind: "activity", name: "Flåm Railway to Myrdal", lng: 7.1242, lat: 60.7314, time: "09:00", imageUrl: img("flam-railway") },
+          { id: "nf-3-2", kind: "viewpoint", name: "Stegastein viewpoint", lng: 7.2106, lat: 60.9075, time: "14:00", imageUrl: img("stegastein") },
+          { id: "nf-3-3", kind: "restaurant", name: "Ægir Brewpub, Flåm", lng: 7.1140, lat: 60.8628, time: "19:00", imageUrl: img("aegir") },
+        ],
+      },
+      {
+        dayNumber: 4,
+        date: "Jun 23",
+        title: "Back to Bergen",
+        steps: [
+          { id: "nf-4-1", kind: "transport", name: "Return rail to Bergen", lng: 5.3330, lat: 60.3900, time: "09:00", imageUrl: img("return-rail") },
+          { id: "nf-4-2", kind: "airport", name: "Bergen Airport Flesland (BGO)", lng: 5.2181, lat: 60.2934, time: "16:00", imageUrl: img("bergen-out") },
+        ],
+      },
+    ],
+  },
+  {
+    id: "queenstown-nz",
+    title: "Queenstown & Fiordland",
+    subtitle: "Four big days in New Zealand's south",
+    guideNote: "Milford Sound is worth the long day — leave at dawn and the Mirror Lakes will be glass. Save a night for Queenstown itself; the lakefront bars are half the trip.",
+    author: { name: "Liam Patel", avatarUrl: avatar("liam-nz") },
+    coverImageUrl: img("queenstown-cover", 1200, 800),
+    startLng: 168.6626,
+    startLat: -45.0312,
+    durationDays: 4,
+    days: [
+      {
+        dayNumber: 1,
+        date: "Mar 07",
+        title: "Queenstown",
+        steps: [
+          { id: "qt-1-1", kind: "airport", name: "Queenstown Airport (ZQN)", lng: 168.7392, lat: -45.0211, time: "11:00", imageUrl: img("zqn") },
+          { id: "qt-1-2", kind: "hotel", name: "Hotel on Lake Wakatipu", lng: 168.6626, lat: -45.0312, time: "13:00", imageUrl: img("wakatipu-hotel") },
+          { id: "qt-1-3", kind: "viewpoint", name: "Skyline Gondola, Bob's Peak", lng: 168.6536, lat: -45.0286, time: "16:00", imageUrl: img("skyline-gondola") },
+        ],
+      },
+      {
+        dayNumber: 2,
+        date: "Mar 08",
+        title: "Glenorchy & Routeburn",
+        steps: [
+          { id: "qt-2-1", kind: "viewpoint", name: "Glenorchy scenic road", lng: 168.3839, lat: -44.8500, time: "08:30", imageUrl: img("glenorchy") },
+          { id: "qt-2-2", kind: "activity", name: "Routeburn Track start", lng: 168.1700, lat: -44.7350, time: "10:30", imageUrl: img("routeburn"), notes: "Day-hike to Routeburn Flats." },
+          { id: "qt-2-3", kind: "restaurant", name: "Glenorchy lakeside lunch", lng: 168.3850, lat: -44.8510, time: "14:00", imageUrl: img("glenorchy-lunch") },
+        ],
+      },
+      {
+        dayNumber: 3,
+        date: "Mar 09",
+        title: "Milford Sound",
+        steps: [
+          { id: "qt-3-1", kind: "viewpoint", name: "Mirror Lakes", lng: 168.0167, lat: -45.2333, time: "08:00", imageUrl: img("mirror-lakes") },
+          { id: "qt-3-2", kind: "activity", name: "Milford Sound cruise", lng: 167.9255, lat: -44.6414, time: "11:30", imageUrl: img("milford-sound"), notes: "Mitre Peak and Stirling Falls." },
+          { id: "qt-3-3", kind: "hotel", name: "Te Anau overnight", lng: 167.7167, lat: -45.4167, time: "18:00", imageUrl: img("te-anau") },
+        ],
+      },
+      {
+        dayNumber: 4,
+        date: "Mar 10",
+        title: "Arrowtown & out",
+        steps: [
+          { id: "qt-4-1", kind: "activity", name: "Shotover Jet", lng: 168.7000, lat: -45.0167, time: "09:30", imageUrl: img("shotover-jet") },
+          { id: "qt-4-2", kind: "activity", name: "Historic Arrowtown", lng: 168.8333, lat: -44.9417, time: "12:00", imageUrl: img("arrowtown") },
+          { id: "qt-4-3", kind: "airport", name: "Queenstown Airport (ZQN)", lng: 168.7392, lat: -45.0211, time: "17:00", imageUrl: img("zqn-out") },
+        ],
+      },
+    ],
+  },
+  {
+    id: "lisbon-fado",
+    title: "Lisbon: Fado & Tiles",
+    subtitle: "Four days of miradouros, azulejos, and saudade",
+    guideNote: "Lisbon is a city of hills and weather that turns fast — keep an indoor backup in your pocket for every afternoon. The tiles and the fado are the soul of the place; don't rush either.",
+    author: { name: "Beatriz Costa", avatarUrl: avatar("beatriz") },
+    coverImageUrl: img("lisbon-cover", 1200, 800),
+    startLng: -9.1300,
+    startLat: 38.7128,
+    durationDays: 4,
+    days: [
+      {
+        dayNumber: 1,
+        date: "May 14",
+        title: "Baixa & Chiado",
+        steps: [
+          { id: "li-1-1", kind: "airport", name: "Humberto Delgado Airport (LIS)", lng: -9.1342, lat: 38.7742, time: "10:30", imageUrl: img("lis"), notes: "Metro red line straight into the centre." },
+          { id: "li-1-2", kind: "hotel", name: "Hotel in Chiado", lng: -9.1422, lat: 38.7103, time: "12:30", imageUrl: img("chiado-hotel") },
+          { id: "li-1-3", kind: "activity", name: "Praça do Comércio & Rua Augusta", lng: -9.1366, lat: 38.7079, time: "15:00", imageUrl: img("praca-comercio") },
+          { id: "li-1-4", kind: "viewpoint", name: "Elevador de Santa Justa", lng: -9.1393, lat: 38.7120, time: "17:30", imageUrl: img("santa-justa") },
+        ],
+      },
+      {
+        dayNumber: 2,
+        date: "May 15",
+        title: "Belém",
+        steps: [
+          { id: "li-2-1", kind: "activity", name: "Jerónimos Monastery", lng: -9.2065, lat: 38.6979, time: "09:30", imageUrl: img("jeronimos") },
+          { id: "li-2-2", kind: "viewpoint", name: "Belém Tower", lng: -9.2160, lat: 38.6916, time: "11:30", imageUrl: img("belem-tower") },
+          { id: "li-2-3", kind: "restaurant", name: "Pastéis de Belém", lng: -9.2032, lat: 38.6975, time: "13:00", imageUrl: img("pasteis-belem"), notes: "The original custard tarts, warm." },
+          { id: "li-2-4", kind: "activity", name: "MAAT museum", lng: -9.1939, lat: 38.6961, time: "15:30", imageUrl: img("maat") },
+        ],
+      },
+      {
+        dayNumber: 3,
+        date: "May 16",
+        title: "Alfama & Fado",
+        steps: [
+          { id: "li-3-1", kind: "activity", name: "São Jorge Castle", lng: -9.1334, lat: 38.7139, time: "10:30", imageUrl: img("sao-jorge") },
+          { id: "li-3-2", kind: "restaurant", name: "Lunch in Mouraria", lng: -9.1320, lat: 38.7165, time: "13:00", imageUrl: img("mouraria-lunch") },
+          { id: "li-3-3", kind: "viewpoint", name: "Alfama & miradouros walking tour", lng: -9.1300, lat: 38.7196, time: "14:00", imageUrl: img("alfama-walk"), notes: "Senhora do Monte, Graça, and the tangle of Alfama lanes." },
+          { id: "li-3-4", kind: "restaurant", name: "Fado dinner, Alfama", lng: -9.1450, lat: 38.7140, time: "20:00", imageUrl: img("fado-dinner"), notes: "Reservation — traditional fado vadio." },
+        ],
+      },
+      {
+        dayNumber: 4,
+        date: "May 17",
+        title: "Sintra day & out",
+        steps: [
+          { id: "li-4-1", kind: "transport", name: "Train to Sintra", lng: -9.3858, lat: 38.7997, time: "09:00", imageUrl: img("sintra-train") },
+          { id: "li-4-2", kind: "viewpoint", name: "Pena Palace", lng: -9.3907, lat: 38.7876, time: "10:30", imageUrl: img("pena-palace") },
+          { id: "li-4-3", kind: "airport", name: "Humberto Delgado Airport (LIS)", lng: -9.1342, lat: 38.7742, time: "18:00", imageUrl: img("lis-out") },
+        ],
+      },
+    ],
+  },
 ];
 
 const TAG_MAP: Record<string, TripTags> = {
@@ -571,6 +954,55 @@ const TAG_MAP: Record<string, TripTags> = {
     pace: "balanced",
     suggestedFor: ["couple", "family", "friends"],
   },
+  "patagonia-w-trek": {
+    vibes: ["mountains", "countryside", "forests"],
+    interests: ["hiking", "wildlife", "photography"],
+    budget: "midrange",
+    pace: "packed",
+    suggestedFor: ["solo", "couple", "friends"],
+  },
+  "kyoto-temples": {
+    vibes: ["cities", "countryside"],
+    interests: ["architecture", "museums", "wellness", "food"],
+    budget: "midrange",
+    pace: "balanced",
+    suggestedFor: ["solo", "couple", "family"],
+  },
+  "sahara-merzouga": {
+    vibes: ["deserts", "countryside"],
+    interests: ["photography", "wildlife", "food"],
+    budget: "midrange",
+    pace: "relaxed",
+    suggestedFor: ["couple", "friends", "family"],
+  },
+  "maldives-atolls": {
+    vibes: ["islands", "beach", "tropical"],
+    interests: ["wellness", "wildlife", "photography"],
+    budget: "luxury",
+    pace: "relaxed",
+    suggestedFor: ["couple", "family"],
+  },
+  "norway-fjords": {
+    vibes: ["mountains", "countryside", "forests"],
+    interests: ["photography", "wellness", "hiking"],
+    budget: "luxury",
+    pace: "balanced",
+    suggestedFor: ["couple", "solo", "family"],
+  },
+  "queenstown-nz": {
+    vibes: ["mountains", "countryside", "forests"],
+    interests: ["hiking", "wildlife", "nightlife", "photography"],
+    budget: "midrange",
+    pace: "packed",
+    suggestedFor: ["friends", "couple", "solo"],
+  },
+  "lisbon-fado": {
+    vibes: ["cities"],
+    interests: ["food", "architecture", "nightlife", "photography"],
+    budget: "midrange",
+    pace: "balanced",
+    suggestedFor: ["solo", "couple", "friends"],
+  },
 };
 
 export const trips: Trip[] = rawTrips.map((t) => ({
@@ -607,10 +1039,49 @@ export function matchesProfile(trip: Trip, profile: Profile | null): boolean {
   return true;
 }
 
+export function scoreTrip(trip: Trip, profile: Profile): number {
+  if (!trip.tags) return 0;
+  let score = 0;
+  for (const v of profile.vibes)
+    if (trip.tags.vibes.includes(v)) score += 2;
+  for (const i of profile.interests)
+    if (trip.tags.interests.includes(i)) score += 2;
+  if (profile.travelStyle && trip.tags.suggestedFor.includes(profile.travelStyle))
+    score += 3;
+  if (profile.budget && trip.tags.budget === profile.budget) score += 1;
+  if (profile.pace && trip.tags.pace === profile.pace) score += 1;
+  return score;
+}
+
 export function filterTripsByProfile(
   source: Trip[],
   profile: Profile | null
 ): Trip[] {
   if (!profile) return source;
-  return source.filter((t) => matchesProfile(t, profile));
+
+  const strict = source.filter((t) => matchesProfile(t, profile));
+  if (strict.length > 0) {
+    // Best matches first, but keep every strict match.
+    return [...strict].sort(
+      (a, b) => scoreTrip(b, profile) - scoreTrip(a, profile)
+    );
+  }
+
+  // Nothing passes the strict filter — never show an empty globe.
+  // Fall back to the closest matches by score so any filter
+  // combination still surfaces at least one destination.
+  const ranked = [...source]
+    .map((t) => ({ t, s: scoreTrip(t, profile) }))
+    .sort((a, b) => b.s - a.s);
+
+  const best = ranked[0]?.s ?? 0;
+  if (best <= 0) {
+    // No overlap at all (rare) — show a small curated handful.
+    return ranked.slice(0, 3).map((r) => r.t);
+  }
+  // Everything sharing the top score, capped so it stays focused.
+  return ranked
+    .filter((r) => r.s >= Math.max(1, best - 2))
+    .slice(0, 5)
+    .map((r) => r.t);
 }

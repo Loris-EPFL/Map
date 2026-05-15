@@ -44,13 +44,22 @@ export const ME: Friend = {
   tagline: "",
 };
 
-export type SwapChoice = { name: string; imageSeed: string };
+export type SwapChoice = {
+  name: string;
+  imageSeed: string;
+  lng?: number;
+  lat?: number;
+};
 
 export type UserTripState = {
   checked: Set<string>;
   booked: Set<string>;
   confirmed: Set<string>;
   swaps: Record<string, SwapChoice>;
+  // Step ids swapped via a weather/closure disruption (green "Updated" badge).
+  disruptionSwaps: Set<string>;
+  // stepId -> new "HH:MM" for auto-shifted dependent steps.
+  timeShifts: Record<string, string>;
 };
 
 type Preset = {
@@ -85,7 +94,14 @@ const PRESETS: Record<string, Preset> = {
 };
 
 export function emptyUserState(): UserTripState {
-  return { checked: new Set(), booked: new Set(), confirmed: new Set(), swaps: {} };
+  return {
+    checked: new Set(),
+    booked: new Set(),
+    confirmed: new Set(),
+    swaps: {},
+    disruptionSwaps: new Set(),
+    timeShifts: {},
+  };
 }
 
 export function makeUserInitialState(userId: string, trip: Trip): UserTripState {
@@ -104,5 +120,12 @@ export function makeUserInitialState(userId: string, trip: Trip): UserTripState 
       }
     })
   );
-  return { checked: new Set(), booked, confirmed: new Set(), swaps };
+  return {
+    checked: new Set(),
+    booked,
+    confirmed: new Set(),
+    swaps,
+    disruptionSwaps: new Set(),
+    timeShifts: {},
+  };
 }

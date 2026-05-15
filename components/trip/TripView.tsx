@@ -29,10 +29,21 @@ import {
   type UserTripState,
 } from "@/lib/mock/friends";
 import { addUserTrip, loadUserTrips } from "@/lib/userTrips";
+import {
+  getDisruptionForTripDay,
+  affectedStepIds as resolveAffectedStepIds,
+  haversineKm,
+  type Disruption,
+  type DisruptionSuggestion,
+} from "@/lib/mock/disruptions";
+import { getStepDetails } from "@/lib/mock/stepDetails";
+import { addMinutes, to12h } from "@/lib/time";
+import Confetti from "./Confetti";
 
 const DAY_COLORS = ["#22d3ee", "#f97316", "#f472b6", "#34d399", "#a78bfa", "#fb7185"];
 
-const CONFIRMABLE_KINDS: Set<StepKind> = new Set(["viewpoint"]);
+// No step kind is "confirmable" — every stop uses the Book flow only.
+const CONFIRMABLE_KINDS: Set<StepKind> = new Set();
 
 const ALTERNATIVES: Record<StepKind, SwapChoice[]> = {
   airport: [
@@ -70,17 +81,27 @@ function img(seed: string, w = 800, h = 600) {
 
 function applySwaps(
   trip: Trip,
-  swaps: Record<string, SwapChoice>
+  swaps: Record<string, SwapChoice>,
+  timeShifts: Record<string, string> = {}
 ): Trip {
-  if (Object.keys(swaps).length === 0) return trip;
+  if (Object.keys(swaps).length === 0 && Object.keys(timeShifts).length === 0)
+    return trip;
   return {
     ...trip,
     days: trip.days.map((day) => ({
       ...day,
       steps: day.steps.map((step) => {
+        let s = step;
         const swap = swaps[step.id];
-        if (!swap) return step;
-        return { ...step, name: swap.name, imageUrl: img(swap.imageSeed) };
+        if (swap) {
+          s = { ...s, name: swap.name, imageUrl: img(swap.imageSeed) };
+          if (swap.lng != null && swap.lat != null) {
+            s = { ...s, lng: swap.lng, lat: swap.lat };
+          }
+        }
+        const shifted = timeShifts[step.id];
+        if (shifted) s = { ...s, time: shifted };
+        return s;
       }),
     })),
   };
@@ -105,6 +126,14 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
   const [tripSaved, setTripSaved] = useState(() =>
     Boolean(loadUserTrips().find((t) => t.baseTripId === initialTrip.id))
   );
+  const [showSuggestionsFor, setShowSuggestionsFor] = useState<string | null>(
+    null
+  );
+  const [previewSuggestion, setPreviewSuggestion] =
+    useState<DisruptionSuggestion | null>(null);
+  const [disruptionDismissed, setDisruptionDismissed] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [confirmedDisruption, setConfirmedDisruption] = useState(false);
 
   function guardAction(fn: () => void) {
     if (activeUserId === "me") {
@@ -119,7 +148,8 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
       ? ME
       : FRIENDS.find((f) => f.id === activeUserId) ?? ME;
   const activeState = users[activeUserId] ?? emptyUserState();
-  const { checked, booked, confirmed, swaps } = activeState;
+  const { checked, booked, confirmed, swaps, disruptionSwaps, timeShifts } =
+    activeState;
 
   type Updater<T> = T | ((prev: T) => T);
   function setChecked(value: Updater<Set<string>>) {
@@ -153,6 +183,28 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
       return { ...prev, [activeUserId]: { ...cur, swaps: next } };
     });
   }
+  function setDisruptionSwaps(value: Updater<Set<string>>) {
+    setUsers((prev) => {
+      const cur = prev[activeUserId] ?? emptyUserState();
+      const next =
+        typeof value === "function"
+          ? (value as (p: Set<string>) => Set<string>)(cur.disruptionSwaps)
+          : value;
+      return { ...prev, [activeUserId]: { ...cur, disruptionSwaps: next } };
+    });
+  }
+  function setTimeShifts(value: Updater<Record<string, string>>) {
+    setUsers((prev) => {
+      const cur = prev[activeUserId] ?? emptyUserState();
+      const next =
+        typeof value === "function"
+          ? (value as (p: Record<string, string>) => Record<string, string>)(
+              cur.timeShifts
+            )
+          : value;
+      return { ...prev, [activeUserId]: { ...cur, timeShifts: next } };
+    });
+  }
 
   function addFriend(friendId: string) {
     setAddedFriendIds((prev) =>
@@ -174,10 +226,134 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
     .filter((f): f is Friend => Boolean(f));
 
   const displayedTrip = useMemo(() => {
-    const swapped = applySwaps(trip, swaps);
+    const swapped = applySwaps(trip, swaps, timeShifts);
     if (selectedDay === null) return swapped;
     return { ...swapped, days: swapped.days.filter((d) => d.dayNumber === selectedDay) };
-  }, [trip, swaps, selectedDay]);
+  }, [trip, swaps, timeShifts, selectedDay]);
+
+  // --- Mocked real-time disruption ---------------------------------------
+  const activeDisruption = useMemo<Disruption | null>(() => {
+    if (disruptionDismissed || confirmedDisruption) return null;
+    for (const day of trip.days) {
+      // Only surface when its day is selected, or "All days" is active.
+      if (selectedDay !== null && selectedDay !== day.dayNumber) continue;
+      const d = getDisruptionForTripDay(trip.id, day.dayNumber);
+      if (d) return d;
+    }
+    return null;
+  }, [trip, selectedDay, disruptionDismissed, confirmedDisruption]);
+
+  const disruptedStepIds = useMemo<string[]>(() => {
+    if (!activeDisruption) return [];
+    const day = trip.days.find(
+      (d) => d.dayNumber === activeDisruption.dayNumber
+    );
+    if (!day) return [];
+    return resolveAffectedStepIds(activeDisruption, day.steps);
+  }, [activeDisruption, trip]);
+
+  const firstAffectedId = disruptedStepIds.find((id) => !swaps[id]) ?? null;
+  const firstSwappedId = Array.from(disruptionSwaps)[0] ?? null;
+
+  function findStepTime(stepId: string): string | undefined {
+    for (const day of trip.days) {
+      const s = day.steps.find((x) => x.id === stepId);
+      if (s) return s.time;
+    }
+    return undefined;
+  }
+
+  function applyDisruptionSwap(
+    stepId: string,
+    sug: DisruptionSuggestion,
+    d: Disruption
+  ) {
+    setSwaps((prev) => ({
+      ...prev,
+      [stepId]: {
+        name: sug.name,
+        imageSeed: sug.imageSeed,
+        lng: sug.lng,
+        lat: sug.lat,
+      },
+    }));
+    setDisruptionSwaps((prev) => {
+      const n = new Set(prev);
+      n.add(stepId);
+      return n;
+    });
+    if (d.dependentStepId && d.shiftMinutes > 0) {
+      const cur = findStepTime(d.dependentStepId);
+      if (cur) {
+        setTimeShifts((prev) => ({
+          ...prev,
+          [d.dependentStepId!]: addMinutes(cur, d.shiftMinutes),
+        }));
+      }
+    }
+    setPreviewSuggestion(null);
+    setShowSuggestionsFor(null);
+  }
+
+  function undoDisruptionSwap(stepId: string, d: Disruption) {
+    setSwaps((prev) => {
+      const n = { ...prev };
+      delete n[stepId];
+      return n;
+    });
+    setDisruptionSwaps((prev) => {
+      const n = new Set(prev);
+      n.delete(stepId);
+      return n;
+    });
+    if (d.dependentStepId) {
+      setTimeShifts((prev) => {
+        const n = { ...prev };
+        delete n[d.dependentStepId!];
+        return n;
+      });
+    }
+    setConfirmedDisruption(false);
+  }
+
+  function confirmDisruptionChanges() {
+    setConfirmedDisruption(true);
+    setShowConfetti(true);
+    setTimeout(() => setShowConfetti(false), 2500);
+  }
+
+  function suggestionMeta(sug: DisruptionSuggestion, fromStepId: string | null) {
+    const synthetic: TripStep = {
+      id: `sug-${sug.imageSeed}`,
+      kind: sug.kind,
+      name: sug.name,
+      lng: sug.lng,
+      lat: sug.lat,
+      imageUrl: img(sug.imageSeed),
+    };
+    const det = getStepDetails(synthetic);
+    let origin: { lng: number; lat: number } = {
+      lng: trip.startLng,
+      lat: trip.startLat,
+    };
+    if (fromStepId) {
+      for (const day of trip.days) {
+        const idx = day.steps.findIndex((s) => s.id === fromStepId);
+        if (idx >= 0) {
+          const prev = idx > 0 ? day.steps[idx - 1] : day.steps[idx];
+          origin = { lng: prev.lng, lat: prev.lat };
+          break;
+        }
+      }
+    }
+    const km = haversineKm(origin, sug);
+    // deterministic 78–97% compatibility
+    let h = 0;
+    for (let i = 0; i < sug.imageSeed.length; i++)
+      h = (h * 31 + sug.imageSeed.charCodeAt(i)) | 0;
+    const compat = 78 + (Math.abs(h) % 20);
+    return { det, km, compat };
+  }
 
   const totalSteps = trip.days.reduce((acc, d) => acc + d.steps.length, 0);
   const isDirty = useMemo(() => {
@@ -430,6 +606,98 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
             </div>
           </div>
         )}
+
+        {activeDisruption && placementDay == null && (() => {
+          const expanded =
+            !!firstAffectedId && showSuggestionsFor === firstAffectedId;
+          return (
+          <div className="pointer-events-none absolute inset-x-0 top-4 z-20 flex justify-center px-4">
+            <div className="pointer-events-auto flex w-full max-w-md flex-col gap-2 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-2xl">
+              <div className="flex items-center gap-3">
+                <span className="text-amber-600">
+                  <RainCloudIcon />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold">{activeDisruption.title}</div>
+                  <div className="text-xs text-amber-800">
+                    {activeDisruption.message}
+                  </div>
+                  <div className="mt-0.5 text-xs text-amber-700">
+                    ✉ We've emailed you about the change to your itinerary.
+                  </div>
+                </div>
+                {firstAffectedId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (expanded) {
+                        setShowSuggestionsFor(null);
+                      } else {
+                        setSelectedDay(activeDisruption.dayNumber);
+                        setShowSuggestionsFor(firstAffectedId);
+                      }
+                    }}
+                    className="shrink-0 rounded-full bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-700"
+                  >
+                    {expanded ? "Hide" : "View Suggestions"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  aria-label="Dismiss alert"
+                  onClick={() => setDisruptionDismissed(true)}
+                  className="shrink-0 rounded-full px-1.5 text-amber-700 transition hover:bg-amber-100"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {expanded && firstAffectedId && (
+                <div className="flex flex-col gap-1.5 border-t border-amber-200 pt-2">
+                  {activeDisruption.suggestions.map((s) => {
+                    const meta = suggestionMeta(s, firstAffectedId);
+                    return (
+                      <button
+                        key={s.imageSeed}
+                        type="button"
+                        onClick={() =>
+                          guardAction(() =>
+                            applyDisruptionSwap(
+                              firstAffectedId,
+                              s,
+                              activeDisruption
+                            )
+                          )
+                        }
+                        className="flex items-center gap-3 rounded-xl bg-white/70 px-2.5 py-2 text-left transition hover:bg-white"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`https://picsum.photos/seed/${encodeURIComponent(s.imageSeed)}/120/90`}
+                          alt={s.name}
+                          className="h-10 w-10 shrink-0 rounded-md object-cover"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-zinc-800">
+                            {s.name}
+                          </span>
+                          <span className="block text-[11px] text-zinc-500">
+                            {meta.km.toFixed(1)} km · {meta.det.duration} ·{" "}
+                            {"$".repeat(meta.det.priceLevel)}
+                          </span>
+                        </span>
+                        <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                          {meta.compat}%
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+          );
+        })()}
       </div>
 
       {/* Side panel */}
@@ -438,6 +706,43 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
           ? "bg-amber-50 border-t-4 border-t-amber-400 lg:border-t-0 lg:border-l-4 lg:border-l-amber-400"
           : "bg-white"
       }`}>
+        {activeUserId !== "me" ? null : confirmedDisruption ? (
+          <div className="z-30 flex shrink-0 items-center gap-2 border-b border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-800">
+            <span aria-hidden>🎉</span>
+            <span>Itinerary updated. Enjoy your day!</span>
+          </div>
+        ) : disruptionSwaps.size > 0 ? (
+          <div className="z-30 flex shrink-0 items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
+            <span className="min-w-0">
+              <span className="font-semibold">
+                {disruptionSwaps.size} change
+                {disruptionSwaps.size === 1 ? "" : "s"}
+              </span>{" "}
+              from the weather alert — review &amp; confirm.
+            </span>
+            <span className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeDisruption && firstSwappedId)
+                    guardAction(() =>
+                      undoDisruptionSwap(firstSwappedId, activeDisruption)
+                    );
+                }}
+                className="rounded-full border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-800 transition hover:bg-amber-100"
+              >
+                Undo
+              </button>
+              <button
+                type="button"
+                onClick={() => guardAction(confirmDisruptionChanges)}
+                className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700"
+              >
+                Confirm Changes
+              </button>
+            </span>
+          </div>
+        ) : null}
         <div className="min-h-0 flex-1 overflow-y-auto pb-36">
           {/* Cover (scrolls away) */}
           <div className="relative h-44 w-full overflow-hidden">
@@ -659,6 +964,16 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                         const isSwapped = !!swaps[step.id];
                         const isOpen = openChangeFor === step.id;
                         const alts = ALTERNATIVES[step.kind] ?? [];
+                        const isUpdated = disruptionSwaps.has(step.id);
+                        const isDisrupted =
+                          !!activeDisruption &&
+                          disruptedStepIds.includes(step.id) &&
+                          !swaps[step.id];
+                        const shiftedTime = timeShifts[step.id];
+                        const isDependentShift =
+                          !!activeDisruption &&
+                          activeDisruption.dependentStepId === step.id &&
+                          !!shiftedTime;
                         return (
                           <SortableStepLI
                             key={step.id}
@@ -666,6 +981,14 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                             color={color}
                             isBooked={isBooked}
                             isConfirmed={isConfirmed}
+                            shifted={
+                              isDependentShift
+                                ? {
+                                    to: shiftedTime,
+                                    minutes: activeDisruption!.shiftMinutes,
+                                  }
+                                : undefined
+                            }
                           >
                             {(dragProps) => (
                               <StepRow
@@ -677,6 +1000,25 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                                 isChecked={isChecked}
                                 isSwapped={isSwapped}
                                 isConfirmable={isConfirmable(step.id)}
+                                isDisrupted={isDisrupted}
+                                isUpdated={isUpdated}
+                                disruptionKind={activeDisruption?.kind}
+                                shiftedTime={shiftedTime}
+                                suggestions={
+                                  isDisrupted ? activeDisruption!.suggestions : undefined
+                                }
+                                isSuggestionsOpen={showSuggestionsFor === step.id}
+                                onToggleSuggestions={() =>
+                                  setShowSuggestionsFor(
+                                    showSuggestionsFor === step.id ? null : step.id
+                                  )
+                                }
+                                onPreviewSuggestion={(s) =>
+                                  setPreviewSuggestion(s)
+                                }
+                                suggestionMeta={(s) =>
+                                  suggestionMeta(s, step.id)
+                                }
                                 onToggleCheck={() => toggleCheck(step.id)}
                                 onToggleChange={() =>
                                   setOpenChangeFor(isOpen ? null : step.id)
@@ -897,6 +1239,85 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
           </div>
         </div>
       )}
+
+      {previewSuggestion && activeDisruption && firstAffectedId && (() => {
+        const { det, km, compat } = suggestionMeta(
+          previewSuggestion,
+          firstAffectedId
+        );
+        const price = "$".repeat(det.priceLevel);
+        return (
+          <div className="fixed inset-0 z-50 flex items-end justify-center px-4 pb-6 sm:items-center sm:pb-0">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setPreviewSuggestion(null)}
+            />
+            <div className="relative w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
+              <div className="relative h-40 w-full">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={img(previewSuggestion.imageSeed)}
+                  alt={previewSuggestion.name}
+                  className="h-full w-full object-cover"
+                />
+                <span className="absolute right-3 top-3 rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-semibold text-white shadow">
+                  {compat}% match
+                </span>
+              </div>
+              <div className="p-5">
+                <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">
+                  Indoor alternative · {previewSuggestion.kind}
+                </div>
+                <h2 className="mt-0.5 text-lg font-semibold text-zinc-900">
+                  {previewSuggestion.name}
+                </h2>
+                <div className="mt-3 space-y-1.5 text-sm text-zinc-700">
+                  <div className="flex items-center gap-2">
+                    <span aria-hidden>🕐</span>
+                    <span>{det.openHours}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span aria-hidden>🎟️</span>
+                    <span>Ticket {price}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span aria-hidden>📍</span>
+                    <span>
+                      {km.toFixed(1)} km · {det.duration} from your last stop
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-5 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewSuggestion(null)}
+                    className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-400"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      guardAction(() =>
+                        applyDisruptionSwap(
+                          firstAffectedId,
+                          previewSuggestion,
+                          activeDisruption
+                        )
+                      )
+                    }
+                    className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                  >
+                    Swap Activity
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {showConfetti && <Confetti />}
     </div>
   );
 }
@@ -944,6 +1365,19 @@ type StepRowProps = {
   isSwapped: boolean;
   isConfirmable: boolean;
   isChangeOpen: boolean;
+  isDisrupted?: boolean;
+  isUpdated?: boolean;
+  disruptionKind?: string;
+  shiftedTime?: string;
+  suggestions?: DisruptionSuggestion[];
+  isSuggestionsOpen?: boolean;
+  onToggleSuggestions?: () => void;
+  onPreviewSuggestion?: (s: DisruptionSuggestion) => void;
+  suggestionMeta?: (s: DisruptionSuggestion) => {
+    det: { openHours: string; duration: string; priceLevel: number };
+    km: number;
+    compat: number;
+  };
   alternatives: SwapChoice[];
   onToggleCheck: () => void;
   onToggleChange: () => void;
@@ -966,6 +1400,15 @@ function StepRow({
   isSwapped,
   isConfirmable,
   isChangeOpen,
+  isDisrupted = false,
+  isUpdated = false,
+  disruptionKind,
+  shiftedTime,
+  suggestions,
+  isSuggestionsOpen = false,
+  onToggleSuggestions,
+  onPreviewSuggestion,
+  suggestionMeta,
   alternatives,
   onToggleCheck,
   onToggleChange,
@@ -977,6 +1420,14 @@ function StepRow({
   onOpenDetail,
   dragHandleProps,
 }: StepRowProps) {
+  const disruptLabel =
+    disruptionKind === "closure"
+      ? "Closed"
+      : disruptionKind === "storm"
+      ? "Storm"
+      : disruptionKind === "heat"
+      ? "Heat"
+      : "Rain";
   return (
     <div
       className={`rounded-lg border transition ${
@@ -984,6 +1435,8 @@ function StepRow({
           ? "border-emerald-200 bg-emerald-50/60"
           : isConfirmed
           ? "border-indigo-200 bg-indigo-50/60"
+          : isDisrupted
+          ? "border-amber-300 bg-amber-50/70"
           : isChecked
           ? "border-zinc-300 bg-zinc-50"
           : "border-transparent"
@@ -999,7 +1452,7 @@ function StepRow({
               alt={step.name}
               className={`h-14 w-14 rounded-md object-cover ${
                 isBooked ? "ring-2 ring-emerald-400" : isConfirmed ? "ring-2 ring-indigo-400" : ""
-              }`}
+              } ${isDisrupted ? "opacity-50 grayscale" : ""}`}
             />
             {isBooked && (
               <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-emerald-500 text-[10px] font-bold text-white">✓</span>
@@ -1007,11 +1460,36 @@ function StepRow({
             {isConfirmed && !isBooked && (
               <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-indigo-500 text-[10px] font-bold text-white">✓</span>
             )}
+            {isDisrupted && (
+              <span
+                className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-amber-500 text-[10px] font-bold text-white"
+                title={`${disruptLabel} disruption`}
+              >
+                ☂
+              </span>
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-wide text-zinc-400">
-              <span>{dayNumber}.{stepIndex} · {step.kind}{step.time ? ` · ${step.time}` : ""}</span>
-              {isSwapped && <span className="rounded-full bg-violet-100 px-1.5 py-px text-[9px] font-semibold text-violet-700">Changed</span>}
+              <span>
+                {dayNumber}.{stepIndex} · {step.kind}
+                {shiftedTime ? (
+                  <>
+                    {" · "}
+                    <s className="text-zinc-400">{step.time}</s>{" "}
+                    <span className="font-semibold text-amber-700">
+                      {shiftedTime}
+                    </span>
+                  </>
+                ) : step.time ? (
+                  ` · ${step.time}`
+                ) : (
+                  ""
+                )}
+              </span>
+              {isUpdated && <span className="rounded-full bg-emerald-100 px-1.5 py-px text-[9px] font-semibold text-emerald-700">Updated</span>}
+              {isSwapped && !isUpdated && <span className="rounded-full bg-violet-100 px-1.5 py-px text-[9px] font-semibold text-violet-700">Changed</span>}
+              {isDisrupted && <span className="rounded-full bg-amber-100 px-1.5 py-px text-[9px] font-semibold text-amber-800">{disruptLabel}</span>}
               {isBooked && <span className="rounded-full bg-emerald-100 px-1.5 py-px text-[9px] font-semibold text-emerald-700">Booked</span>}
               {isConfirmed && !isBooked && <span className="rounded-full bg-indigo-100 px-1.5 py-px text-[9px] font-semibold text-indigo-700">Confirmed</span>}
             </div>
@@ -1077,6 +1555,19 @@ function StepRow({
             Book
           </button>
         )}
+        {isDisrupted && (
+          <button
+            type="button"
+            onClick={onToggleSuggestions}
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+              isSuggestionsOpen
+                ? "bg-amber-600 text-white"
+                : "bg-amber-100 text-amber-800 hover:bg-amber-200"
+            }`}
+          >
+            {isSuggestionsOpen ? "Hide suggestions" : "View suggestions"}
+          </button>
+        )}
         <button
           type="button"
           onClick={onToggleChange}
@@ -1130,6 +1621,52 @@ function StepRow({
           )}
         </div>
       )}
+
+      {/* Disruption suggestions panel */}
+      {isDisrupted &&
+        isSuggestionsOpen &&
+        suggestions &&
+        suggestions.length > 0 && (
+          <div className="mx-2 mb-2 overflow-hidden rounded-lg border border-amber-200 bg-white">
+            <div className="border-b border-amber-100 bg-amber-50 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
+              Indoor alternatives nearby
+            </div>
+            {suggestions.map((s) => {
+              const meta = suggestionMeta?.(s);
+              return (
+                <button
+                  key={s.imageSeed}
+                  type="button"
+                  onClick={() => onPreviewSuggestion?.(s)}
+                  className="flex w-full items-center gap-3 border-b border-zinc-100 px-3 py-2.5 text-left last:border-b-0 transition hover:bg-amber-50/60"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`https://picsum.photos/seed/${encodeURIComponent(s.imageSeed)}/120/90`}
+                    alt={s.name}
+                    className="h-11 w-11 shrink-0 rounded-md object-cover"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-zinc-800">
+                      {s.name}
+                    </span>
+                    {meta && (
+                      <span className="block text-[11px] text-zinc-500">
+                        {meta.km.toFixed(1)} km · {meta.det.duration} ·{" "}
+                        {"$".repeat(meta.det.priceLevel)}
+                      </span>
+                    )}
+                  </span>
+                  {meta && (
+                    <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                      {meta.compat}%
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
     </div>
   );
 }
@@ -1150,6 +1687,24 @@ function ShareIcon() {
       <circle cx="6" cy="12" r="2.5" />
       <circle cx="18" cy="19" r="2.5" />
       <path d="M8.2 13.3L15.8 17.7M15.8 6.3L8.2 10.7" />
+    </svg>
+  );
+}
+
+function RainCloudIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-5 w-5"
+      aria-hidden
+    >
+      <path d="M7 16a4 4 0 010-8 5 5 0 019.6-1.5A3.5 3.5 0 0117 16H7z" />
+      <path d="M8 19l-1 2M12 19l-1 2M16 19l-1 2" />
     </svg>
   );
 }
@@ -1424,12 +1979,14 @@ function SortableStepLI({
   color,
   isBooked,
   isConfirmed,
+  shifted,
   children,
 }: {
   step: TripStep;
   color: string;
   isBooked: boolean;
   isConfirmed: boolean;
+  shifted?: { to: string; minutes: number };
   children: (props: DragHandleProps) => React.ReactNode;
 }) {
   const {
@@ -1451,12 +2008,28 @@ function SortableStepLI({
 
   return (
     <li ref={setNodeRef} style={style} className="mb-4 last:mb-0">
+      {shifted && (
+        <span
+          className="shift-connector absolute -left-[1px] -top-4 h-4"
+          aria-hidden
+        />
+      )}
+      {shifted && (
+        <span
+          title={`Moved to ${to12h(shifted.to)} to give you more time`}
+          className="absolute -left-1 -top-3 z-10 cursor-help rounded-full bg-amber-500 px-1.5 py-px text-[9px] font-bold text-white shadow"
+        >
+          ↳ +{shifted.minutes}m
+        </span>
+      )}
       <span
         className={`absolute -left-[7px] mt-1 inline-block h-3 w-3 rounded-full border-2 ${
           isBooked
             ? "border-emerald-400"
             : isConfirmed
             ? "border-indigo-400"
+            : shifted
+            ? "border-amber-400"
             : "border-white"
         }`}
         style={{ backgroundColor: color }}

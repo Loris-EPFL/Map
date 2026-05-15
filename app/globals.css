@@ -112,6 +112,27 @@ body {
 .orb-b { animation: orb-drift-b 23s ease-in-out infinite; }
 .orb-c { animation: orb-drift-c 27s ease-in-out infinite; }
 .orb-d { animation: orb-drift-d 21s ease-in-out infinite; }
+
+/* Disruption confetti + dependency connector */
+@keyframes confetti-fall {
+  0%   { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(var(--x, 0px), 100vh, 0) rotate(720deg); opacity: 0; }
+}
+.confetti-pi {
+  position: absolute;
+  top: 0;
+  width: 8px;
+  height: 14px;
+  will-change: transform, opacity;
+  animation-name: confetti-fall;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  animation-iteration-count: 1;
+}
+.shift-connector {
+  border-left: 2px dotted #f59e0b;
+}
+
 .input::placeholder {
   color: #a1a1aa;
 }
