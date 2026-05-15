@@ -33,6 +33,8 @@ export type Profile = {
   budget: Budget | "";
   interests: Interest[];
   bio: string;
+  startDate: string;
+  endDate: string;
   updatedAt?: string;
 };
 
@@ -54,6 +56,8 @@ export const emptyProfileFields: Omit<Profile, "id" | "label"> = {
   budget: "",
   interests: [],
   bio: "",
+  startDate: "",
+  endDate: "",
 };
 
 export function newProfileId(): string {
@@ -89,7 +93,13 @@ export function loadStore(): ProfileStore | null {
       };
       return { profiles: [migrated], activeProfileId: migrated.id };
     }
-    return parsed as ProfileStore;
+    // Backfill fields added after a profile was first saved (e.g. the trip
+    // date range) so profiles created before this release still work.
+    const store = parsed as ProfileStore;
+    return {
+      ...store,
+      profiles: store.profiles.map((p) => ({ ...emptyProfileFields, ...p })),
+    };
   } catch {
     return null;
   }
@@ -108,6 +118,33 @@ export function saveStore(store: ProfileStore): void {
 export function clearStore(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(PROFILE_KEY);
+}
+
+// Parse an ISO yyyy-mm-dd as a local date (avoids the UTC off-by-one that
+// `new Date("2026-04-02")` causes in negative-offset timezones).
+function parseISODate(iso: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+export function formatDateRange(startISO: string, endISO: string): string {
+  const start = parseISODate(startISO);
+  const end = parseISODate(endISO);
+  if (!start || !end) return "";
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  const sameYear = start.getFullYear() === end.getFullYear();
+  const startStr = start.toLocaleDateString(undefined, opts);
+  const endStr = end.toLocaleDateString(undefined, {
+    ...opts,
+    year: "numeric",
+  });
+  const days =
+    Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  const range = sameYear
+    ? `${startStr} – ${endStr}`
+    : `${start.toLocaleDateString(undefined, { ...opts, year: "numeric" })} – ${endStr}`;
+  return days > 0 ? `${range} · ${days} ${days === 1 ? "day" : "days"}` : range;
 }
 
 export function getActiveProfile(store: ProfileStore | null): Profile | null {

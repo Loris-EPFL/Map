@@ -80,6 +80,31 @@ function img(seed: string, w = 800, h = 600) {
   return `https://picsum.photos/seed/${encodeURIComponent(seed)}/${w}/${h}`;
 }
 
+// Trip day dates are stored as short display strings like "Apr 02". The native
+// date picker needs ISO "yyyy-mm-dd", so convert in both directions. A year is
+// only needed for the picker itself — it is never shown to the user.
+const MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+function dayDateToISO(s: string): string {
+  const m = /^([A-Za-z]{3})\s+(\d{1,2})$/.exec(s.trim());
+  if (!m) return "";
+  const mi = MONTHS.findIndex(
+    (mo) => mo.toLowerCase() === m[1].toLowerCase()
+  );
+  if (mi < 0) return "";
+  const year = new Date().getFullYear();
+  return `${year}-${String(mi + 1).padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+}
+
+function isoToDayDate(iso: string): string {
+  const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return "";
+  return `${MONTHS[Number(m[1]) - 1]} ${m[2]}`;
+}
+
 function applySwaps(
   trip: Trip,
   swaps: Record<string, SwapChoice>,
@@ -125,6 +150,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
   const [openChangeFor, setOpenChangeFor] = useState<string | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [dayPendingDelete, setDayPendingDelete] = useState<number | null>(null);
+  const [editingDateDay, setEditingDateDay] = useState<number | null>(null);
   const [detailStepId, setDetailStepId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
@@ -609,6 +635,34 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
     }));
   }
 
+  function editDayDate(dayNumber: number, iso: string) {
+    // Changing Day 1's date re-bases the whole trip: every later day becomes
+    // start + (dayNumber - 1) days. Editing any other day stays local.
+    if (dayNumber === 1) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+      const base = m
+        ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+        : null;
+      setTrip((prev) => ({
+        ...prev,
+        days: prev.days.map((d) => {
+          if (!base) return d.dayNumber === 1 ? { ...d, date: "" } : d;
+          const dt = new Date(base);
+          dt.setDate(dt.getDate() + (d.dayNumber - 1));
+          return { ...d, date: `${MONTHS[dt.getMonth()]} ${String(dt.getDate()).padStart(2, "0")}` };
+        }),
+      }));
+      return;
+    }
+    const date = isoToDayDate(iso);
+    setTrip((prev) => ({
+      ...prev,
+      days: prev.days.map((d) =>
+        d.dayNumber === dayNumber ? { ...d, date } : d
+      ),
+    }));
+  }
+
   function reorderSteps(dayNumber: number, fromId: string, toId: string) {
     setTrip((prev) => ({
       ...prev,
@@ -1018,8 +1072,40 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                     </h2>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
-                    {day.date && (
-                      <span className="text-xs text-zinc-400">{day.date}</span>
+                    {editingDateDay === day.dayNumber ? (
+                      <input
+                        type="date"
+                        autoFocus
+                        defaultValue={dayDateToISO(day.date)}
+                        onChange={(e) =>
+                          guardAction(() =>
+                            editDayDate(day.dayNumber, e.target.value)
+                          )
+                        }
+                        onBlur={() => setEditingDateDay(null)}
+                        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 focus:border-zinc-500 focus:outline-none"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setEditingDateDay(day.dayNumber)}
+                        title="Change date"
+                        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
+                      >
+                        <svg
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          className="h-3.5 w-3.5"
+                          aria-hidden
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zM3.5 8v7.25c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25V8h-13z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        {day.date || "Add date"}
+                      </button>
                     )}
                     {trip.days.length > 1 && (
                       <button

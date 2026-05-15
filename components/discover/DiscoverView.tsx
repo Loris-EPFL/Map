@@ -8,6 +8,7 @@ import {
   saveStore,
   createEmptyStore,
   createProfile,
+  formatDateRange,
   type Profile,
   type ProfileStore,
 } from "@/lib/profile";
@@ -219,8 +220,14 @@ function ProfileCard({
         ) : (
           <div className="mt-1 text-xs text-zinc-400 italic">No preferences set yet</div>
         )}
+        {profile.startDate && profile.endDate && (
+          <div className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-2.5 py-0.5 text-[11px] font-medium text-violet-700">
+            <span aria-hidden>📅</span>
+            {formatDateRange(profile.startDate, profile.endDate)}
+          </div>
+        )}
         {profile.updatedAt && (
-          <div className="mt-0.5 text-xs text-zinc-400">
+          <div className="mt-1 text-xs text-zinc-400">
             Updated {new Date(profile.updatedAt).toLocaleDateString()}
           </div>
         )}

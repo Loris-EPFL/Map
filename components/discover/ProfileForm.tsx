@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createEmptyStore,
-
+  formatDateRange,
   loadStore,
   saveStore,
   clearStore,
@@ -214,6 +214,41 @@ export default function ProfileForm() {
             />
           </Field>
         </div>
+      </section>
+
+      {/* Travel dates */}
+      <section>
+        <h2 className="mb-1 text-xs uppercase tracking-[0.2em] text-zinc-500">
+          When are you going?
+        </h2>
+        <p className="mb-3 text-xs text-zinc-400">
+          Optional — pick the dates you have in mind.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Start date">
+            <input
+              type="date"
+              value={activeProfile.startDate}
+              max={activeProfile.endDate || undefined}
+              onChange={(e) => update("startDate", e.target.value)}
+              className="input"
+            />
+          </Field>
+          <Field label="End date">
+            <input
+              type="date"
+              value={activeProfile.endDate}
+              min={activeProfile.startDate || undefined}
+              onChange={(e) => update("endDate", e.target.value)}
+              className="input"
+            />
+          </Field>
+        </div>
+        {activeProfile.startDate && activeProfile.endDate && (
+          <p className="mt-2 text-xs text-zinc-500">
+            {formatDateRange(activeProfile.startDate, activeProfile.endDate)}
+          </p>
+        )}
       </section>
 
       {/* Travel style */}
