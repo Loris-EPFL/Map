@@ -4,23 +4,12 @@ import Link from "next/link";
 import { useState } from "react";
 import type { Trip, TripStep, StepKind } from "@/lib/mock/types";
 import { addBookedStepIds } from "@/lib/bookings";
-
-const PRICE_RANGES: Record<StepKind, [number, number]> = {
-  airport: [20, 40],
-  hotel: [89, 299],
-  activity: [25, 120],
-  restaurant: [18, 75],
-  transport: [5, 28],
-  viewpoint: [0, 18],
-};
-
-function stepPrice(step: TripStep): number {
-  const [min, max] = PRICE_RANGES[step.kind];
-  let h = 0;
-  for (const c of step.id) h = (h * 31 + c.charCodeAt(0)) & 0x7fffffff;
-  const t = h / 0x7fffffff;
-  return Math.round((min + t * (max - min)) * 100) / 100;
-}
+import {
+  stepPrice,
+  formatPrice,
+  SERVICE_FEE_RATE,
+  TAX_RATE,
+} from "@/lib/mock/pricing";
 
 const KIND_LABEL: Record<StepKind, string> = {
   airport: "Airport",
@@ -40,9 +29,7 @@ const KIND_COLOR: Record<StepKind, string> = {
   viewpoint: "bg-emerald-100 text-emerald-700",
 };
 
-function fmt(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
-}
+const fmt = formatPrice;
 
 function findDayNumber(trip: Trip, stepId: string): number | null {
   for (const day of trip.days) {
@@ -63,8 +50,8 @@ export default function BookingView({ trip, steps }: Props) {
 
   const prices = steps.map((s) => stepPrice(s));
   const subtotal = prices.reduce((a, b) => a + b, 0);
-  const serviceFee = Math.round(subtotal * 0.08 * 100) / 100;
-  const taxes = Math.round(subtotal * 0.1 * 100) / 100;
+  const serviceFee = Math.round(subtotal * SERVICE_FEE_RATE * 100) / 100;
+  const taxes = Math.round(subtotal * TAX_RATE * 100) / 100;
   const total = Math.round((subtotal + serviceFee + taxes) * 100) / 100;
 
   function formatCard(raw: string) {

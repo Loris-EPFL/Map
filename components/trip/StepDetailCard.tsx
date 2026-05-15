@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { StepKind, TripStep } from "@/lib/mock/types";
 import { getStepDetails } from "@/lib/mock/stepDetails";
+import { grossStepPrice, formatPrice } from "@/lib/mock/pricing";
 import type { TripStepEditable } from "@/components/map/MapClient";
 
 const KIND_LABEL: Record<TripStep["kind"], string> = {
@@ -44,6 +45,7 @@ export default function StepDetailCard({
   onEdit?: (patch: Partial<TripStepEditable>) => void;
 }) {
   const d = getStepDetails(step);
+  const price = grossStepPrice(step);
   const photos = [step.imageUrl, ...d.extraImages];
   const [photoIdx, setPhotoIdx] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
@@ -177,6 +179,17 @@ export default function StepDetailCard({
           <span className="text-zinc-300">·</span>
           <span className="font-medium text-zinc-700">
             {PRICE_LABEL[d.priceLevel]}
+          </span>
+          <span className="text-zinc-300">·</span>
+          <span className="font-semibold text-zinc-900">
+            {price === 0 ? (
+              <span className="text-emerald-600">Free</span>
+            ) : (
+              <>
+                {formatPrice(price)}{" "}
+                <span className="font-normal text-zinc-400">incl. fees</span>
+              </>
+            )}
           </span>
           {d.reservationRequired && (
             <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-800">

@@ -32,6 +32,7 @@ import { addUserTrip, loadUserTrips } from "@/lib/userTrips";
 import { loadBookedStepIds, removeBookedStepIds } from "@/lib/bookings";
 import { legId, loadPurchasedLegIds, TICKETS_EVENT } from "@/lib/tickets";
 import { legInfo } from "@/lib/mock/transport";
+import { grossStepPrice, grossTotal, formatPrice } from "@/lib/mock/pricing";
 import TransportIcon from "@/components/map/TransportIcon";
 import {
   getDisruptionForTripDay,
@@ -405,6 +406,11 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
       confirmed.size > 0
     );
   }, [initialTrip, swaps, totalSteps, booked, confirmed]);
+
+  const tripTotal = useMemo(
+    () => grossTotal(trip.days.flatMap((d) => d.steps)),
+    [trip]
+  );
 
   const bookedCount = booked.size;
   const confirmedCount = confirmed.size;
@@ -976,7 +982,11 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-semibold">by {trip.author.name}</div>
                 <div className="text-xs text-zinc-500">
-                  {trip.durationDays} days · {totalSteps} stops
+                  {trip.durationDays} days · {totalSteps} stops ·{" "}
+                  <span className="font-semibold text-zinc-700">
+                    {formatPrice(tripTotal)} total
+                  </span>
+                  <span className="text-zinc-400"> incl. fees</span>
                   {bookedCount > 0 ? (
                     <>
                       {" · "}
@@ -1681,6 +1691,7 @@ function StepRow({
   dragHandleProps,
 }: StepRowProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const price = grossStepPrice(step);
   const disruptLabel =
     disruptionKind === "closure"
       ? "Closed"
@@ -1754,7 +1765,16 @@ function StepRow({
               {isBooked && <span className="rounded-full bg-emerald-100 px-1.5 py-px text-[9px] font-semibold text-emerald-700">Booked</span>}
               {isConfirmed && !isBooked && <span className="rounded-full bg-indigo-100 px-1.5 py-px text-[9px] font-semibold text-indigo-700">Confirmed</span>}
             </div>
-            <div className="truncate text-sm font-medium text-zinc-900">{step.name}</div>
+            <div className="flex items-baseline justify-between gap-2">
+              <div className="truncate text-sm font-medium text-zinc-900">{step.name}</div>
+              <div className="shrink-0 text-sm font-semibold text-zinc-900">
+                {price === 0 ? (
+                  <span className="text-emerald-600">Free</span>
+                ) : (
+                  formatPrice(price)
+                )}
+              </div>
+            </div>
             {step.notes && <div className="mt-0.5 truncate text-xs text-zinc-500">{step.notes}</div>}
             <label className="mt-1 inline-flex cursor-pointer items-center gap-1.5 text-xs text-zinc-500">
               <input
