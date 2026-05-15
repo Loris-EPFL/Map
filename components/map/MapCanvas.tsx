@@ -180,6 +180,8 @@ export default function MapCanvas(props: MapClientProps) {
 
   const isGlobe = props.mode === "globe";
   const trip = !isGlobe ? props.trip : null;
+  const focus = isGlobe ? props.focus ?? null : null;
+  const focusNonce = focus?.nonce ?? null;
   const bookedSet = useMemo(
     () => new Set(!isGlobe ? props.bookedStepIds ?? [] : []),
     [isGlobe, props]
@@ -265,6 +267,22 @@ export default function MapCanvas(props: MapClientProps) {
     }, 600);
     return () => clearTimeout(id);
   }, [isGlobe]);
+
+  // Fly the globe to a searched trip and open its card (no spinning needed).
+  useEffect(() => {
+    if (!isGlobe || focusNonce == null || !focus || !mapRef.current) return;
+    const t = props.trips.find((tr) => tr.id === focus.tripId);
+    if (!t) return;
+    mapRef.current.flyTo({
+      center: [t.startLng, t.startLat],
+      zoom: 3.5,
+      duration: 1800,
+      essential: true,
+    });
+    setActiveTrip(t);
+    setPhotoIdx(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusNonce]);
 
   const tripIdentity = useMemo(
     () =>

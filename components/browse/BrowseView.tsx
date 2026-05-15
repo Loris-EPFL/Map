@@ -18,6 +18,11 @@ export default function BrowseView({ trips }: { trips: Trip[] }) {
   const [store, setStore] = useState<ProfileStore | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [filterEnabled, setFilterEnabled] = useState(true);
+  const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [focus, setFocus] = useState<{ tripId: string; nonce: number } | null>(
+    null
+  );
 
   useEffect(() => {
     const loaded = loadStore();
@@ -39,6 +44,24 @@ export default function BrowseView({ trips }: { trips: Trip[] }) {
 
   const isEmpty = isFiltering && filteredTrips.length === 0;
 
+  const searchResults = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return filteredTrips
+      .filter(
+        (t) =>
+          t.title.toLowerCase().includes(q) ||
+          t.subtitle.toLowerCase().includes(q)
+      )
+      .slice(0, 6);
+  }, [query, filteredTrips]);
+
+  function goToTrip(t: Trip) {
+    setQuery(t.title);
+    setSearchOpen(false);
+    setFocus({ tripId: t.id, nonce: Date.now() });
+  }
+
   function switchProfile(profileId: string) {
     if (!store) return;
     const next: ProfileStore = { ...store, activeProfileId: profileId };
@@ -59,7 +82,7 @@ export default function BrowseView({ trips }: { trips: Trip[] }) {
         <Starfield />
       </div>
       <div className="absolute inset-0">
-        <MapClient mode="globe" trips={filteredTrips} />
+        <MapClient mode="globe" trips={filteredTrips} focus={focus} />
       </div>
 
       <header className="relative z-10 flex items-center justify-between px-6 py-5 sm:px-8 sm:py-6">
@@ -73,6 +96,88 @@ export default function BrowseView({ trips }: { trips: Trip[] }) {
           <Link className="transition hover:text-white" href="/trips">Trips</Link>
         </nav>
       </header>
+
+      <div className="pointer-events-auto relative z-20 mx-auto mt-1 w-full max-w-md px-6 sm:px-0">
+        <div className="relative">
+          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/50">
+            <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden>
+              <path
+                fillRule="evenodd"
+                d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </span>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSearchOpen(true);
+            }}
+            onFocus={() => setSearchOpen(true)}
+            onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && searchResults[0]) goToTrip(searchResults[0]);
+              if (e.key === "Escape") setSearchOpen(false);
+            }}
+            placeholder="Search a place"
+            aria-label="Search trips by place"
+            className="w-full rounded-full border border-white/20 bg-black/60 py-2.5 pl-11 pr-11 text-sm text-white placeholder-white/40 backdrop-blur transition focus:border-cyan-300/60 focus:outline-none"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                setSearchOpen(false);
+              }}
+              aria-label="Clear search"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 transition hover:text-white"
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden>
+                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+              </svg>
+            </button>
+          )}
+
+          {searchOpen && query.trim() && (
+            <ul className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-white/15 bg-[#0d1230]/95 shadow-2xl backdrop-blur">
+              {searchResults.length === 0 ? (
+                <li className="px-4 py-3 text-sm text-white/50">
+                  No trips match “{query.trim()}”.
+                </li>
+              ) : (
+                searchResults.map((t) => (
+                  <li key={t.id}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => goToTrip(t)}
+                      className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-white/10"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={t.coverImageUrl}
+                        alt=""
+                        className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium text-white">
+                          {t.title}
+                        </span>
+                        <span className="block truncate text-xs text-white/50">
+                          {t.subtitle}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          )}
+        </div>
+      </div>
 
       {hydrated && hasProfile && (
         <div className="pointer-events-auto relative z-10 mx-auto mt-2 flex w-full max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-cyan-400/30 bg-black/60 px-3 py-2 text-xs text-white backdrop-blur sm:text-sm">

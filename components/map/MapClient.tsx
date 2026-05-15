@@ -15,6 +15,8 @@ const MapCanvas = dynamic(() => import("./MapCanvas"), {
 type GlobeProps = {
   mode: "globe";
   trips: Trip[];
+  /** Set by the search bar to fly the globe to a trip (nonce retriggers it). */
+  focus?: { tripId: string; nonce: number } | null;
 };
 
 type ItineraryProps = {
