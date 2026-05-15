@@ -8,11 +8,13 @@ import type { Trip } from "@/lib/mock/types";
 import {
   deleteUserTrip,
   loadUserTrips,
+  saveUserTrips,
   toggleUserTripStatus,
   updateUserTrip,
   type UserTrip,
   type UserTripStatus,
 } from "@/lib/userTrips";
+import { toast } from "@/lib/toast";
 
 type Filter = "all" | "planning" | "completed";
 
@@ -53,6 +55,7 @@ export default function TripsView() {
     setTrips(updateUserTrip(editingId, { name }));
     setEditingId(null);
     setDraftName("");
+    toast({ message: `Renamed to “${name}”` });
   }
 
   function cancelRename() {
@@ -65,8 +68,20 @@ export default function TripsView() {
   }
 
   function removeTrip(id: string) {
+    const prev = trips ?? loadUserTrips();
+    const removed = prev.find((t) => t.id === id);
     setTrips(deleteUserTrip(id));
     setConfirmDeleteId(null);
+    toast({
+      message: `“${removed?.name ?? "Trip"}” deleted`,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          saveUserTrips(prev);
+          setTrips(prev);
+        },
+      },
+    });
   }
 
   return (

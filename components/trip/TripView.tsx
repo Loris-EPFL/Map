@@ -29,7 +29,12 @@ import {
   type UserTripState,
 } from "@/lib/mock/friends";
 import { addUserTrip, loadUserTrips } from "@/lib/userTrips";
-import { loadBookedStepIds, removeBookedStepIds } from "@/lib/bookings";
+import {
+  addBookedStepIds,
+  loadBookedStepIds,
+  removeBookedStepIds,
+} from "@/lib/bookings";
+import { toast } from "@/lib/toast";
 import { legId, loadPurchasedLegIds, TICKETS_EVENT } from "@/lib/tickets";
 import { legInfo } from "@/lib/mock/transport";
 import { grossStepPrice, grossTotal, formatPrice } from "@/lib/mock/pricing";
@@ -256,10 +261,14 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
         ? prev
         : { ...prev, [friendId]: makeUserInitialState(friendId, trip) }
     );
+    const name = FRIENDS.find((f) => f.id === friendId)?.name ?? "Friend";
+    toast({ message: `${name} added to this trip` });
   }
   function removeFriend(friendId: string) {
     setAddedFriendIds((prev) => prev.filter((id) => id !== friendId));
     if (activeUserId === friendId) setActiveUserId("me");
+    const name = FRIENDS.find((f) => f.id === friendId)?.name ?? "Friend";
+    toast({ message: `${name} removed from this trip` });
   }
 
   const addedFriends = addedFriendIds
@@ -469,6 +478,12 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
   }
 
   function deleteStep(stepId: string) {
+    const prevTrip = trip;
+    const prevUsers = users;
+    const wasBooked = booked.has(stepId);
+    const stepName =
+      trip.days.flatMap((d) => d.steps).find((s) => s.id === stepId)?.name ??
+      "Stop";
     setTrip((prev) => ({
       ...prev,
       days: prev.days.map((d) => ({
@@ -481,6 +496,19 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
     setConfirmed((prev) => { const n = new Set(prev); n.delete(stepId); return n; });
     setSwaps((prev) => { const n = { ...prev }; delete n[stepId]; return n; });
     if (activeUserId === "me") removeBookedStepIds(trip.id, [stepId]);
+    toast({
+      message: `“${stepName}” removed`,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setTrip(prevTrip);
+          setUsers(prevUsers);
+          if (activeUserId === "me" && wasBooked) {
+            addBookedStepIds(prevTrip.id, [stepId]);
+          }
+        },
+      },
+    });
   }
 
   function confirmStep(stepId: string) {
@@ -542,6 +570,9 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
     const idx = sorted.findIndex((d) => d.dayNumber === dayNumber);
     if (idx === -1) return;
 
+    const prevTrip = trip;
+    const prevUsers = users;
+    const prevSelectedDay = selectedDay;
     const removed = sorted[idx];
     const isFirst = idx === 0;
     const isLast = idx === sorted.length - 1;
@@ -609,6 +640,22 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
     ) {
       setSelectedDay(null);
     }
+
+    const restoreBooked = droppedIds.filter((id) => booked.has(id));
+    toast({
+      message: `Day ${dayNumber} deleted`,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setTrip(prevTrip);
+          setUsers(prevUsers);
+          setSelectedDay(prevSelectedDay);
+          if (activeUserId === "me" && restoreBooked.length > 0) {
+            addBookedStepIds(prevTrip.id, restoreBooked);
+          }
+        },
+      },
+    });
   }
 
   function addStep(dayNumber: number, lng: number, lat: number) {
@@ -648,6 +695,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
         ),
       })),
     }));
+    toast({ message: "Stop details updated" });
   }
 
   function editDayDate(dayNumber: number, iso: string) {
@@ -667,6 +715,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
           return { ...d, date: `${MONTHS[dt.getMonth()]} ${String(dt.getDate()).padStart(2, "0")}` };
         }),
       }));
+      toast({ message: "Trip dates updated from Day 1" });
       return;
     }
     const date = isoToDayDate(iso);
@@ -676,6 +725,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
         d.dayNumber === dayNumber ? { ...d, date } : d
       ),
     }));
+    toast({ message: `Day ${dayNumber} date updated` });
   }
 
   function reorderSteps(dayNumber: number, fromId: string, toId: string) {
@@ -1194,6 +1244,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                       String(active.id),
                       String(over.id)
                     );
+                    toast({ message: `Day ${day.dayNumber} itinerary reordered` });
                   }}
                 >
                   <SortableContext
@@ -1862,22 +1913,21 @@ function StepRow({
         </button>
         <button
           type="button"
-          onClick={() => {
-            if (isBooked) setConfirmingDelete(true);
-            else onDelete();
-          }}
+          onClick={() => setConfirmingDelete(true)}
           className="ml-auto rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-50"
         >
           Delete
         </button>
       </div>
 
-      {/* Double confirmation for deleting a booked stop */}
+      {/* Confirmation before deleting any stop */}
       {confirmingDelete && (
         <div className="mx-2 mb-2 flex flex-col gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs text-rose-900">
           <span>
-            Are you sure you want to delete this? If a reimbursement applies,
-            the venues will contact you by email.
+            Are you sure you want to delete this?
+            {isBooked
+              ? " If a reimbursement applies, the venues will contact you by email."
+              : ""}
           </span>
           <div className="flex items-center justify-end gap-2">
             <button
