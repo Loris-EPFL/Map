@@ -4,6 +4,10 @@
 
 const KEY = "atlas.tickets";
 
+// Fired on `window` after a ticket is bought so other components on the same
+// screen (e.g. the trip list alongside the map) can refresh without a reload.
+export const TICKETS_EVENT = "atlas:tickets";
+
 type TicketMap = Record<string, string[]>;
 
 export function legId(fromStepId: string, toStepId: string): string {
@@ -39,4 +43,7 @@ export function addPurchasedLegId(tripId: string, id: string): void {
   const next = new Set([...(map[tripId] ?? []), id]);
   map[tripId] = Array.from(next);
   saveMap(map);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(TICKETS_EVENT, { detail: { tripId } }));
+  }
 }

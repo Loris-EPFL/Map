@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -30,6 +30,9 @@ import {
 } from "@/lib/mock/friends";
 import { addUserTrip, loadUserTrips } from "@/lib/userTrips";
 import { loadBookedStepIds, removeBookedStepIds } from "@/lib/bookings";
+import { legId, loadPurchasedLegIds, TICKETS_EVENT } from "@/lib/tickets";
+import { legInfo } from "@/lib/mock/transport";
+import TransportIcon from "@/components/map/TransportIcon";
 import {
   getDisruptionForTripDay,
   affectedStepIds as resolveAffectedStepIds,
@@ -151,6 +154,12 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [dayPendingDelete, setDayPendingDelete] = useState<number | null>(null);
   const [editingDateDay, setEditingDateDay] = useState<number | null>(null);
+  // Starts empty so server and first client render match; the effect below
+  // hydrates it from localStorage after mount (avoids a hydration mismatch
+  // since the "Transport paid" rows are structural, not just styling).
+  const [purchasedLegs, setPurchasedLegs] = useState<Set<string>>(
+    () => new Set<string>()
+  );
   const [detailStepId, setDetailStepId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
@@ -692,6 +701,20 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [placementDay]);
 
+  // Keep the "transport paid" markers in sync when a ticket is bought on the
+  // map (same screen, no reload) or in another tab.
+  useEffect(() => {
+    const refresh = () =>
+      setPurchasedLegs(new Set(loadPurchasedLegIds(trip.id)));
+    refresh();
+    window.addEventListener(TICKETS_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(TICKETS_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, [trip.id]);
+
   return (
     <div className="relative flex h-[100dvh] flex-col bg-zinc-50 text-zinc-900 lg:flex-row">
       {/* Map */}
@@ -1188,9 +1211,15 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                           !!activeDisruption &&
                           activeDisruption.dependentStepId === step.id &&
                           !!shiftedTime;
+                        const nextStep = day.steps[i + 1];
+                        const paidLeg =
+                          nextStep &&
+                          purchasedLegs.has(legId(step.id, nextStep.id))
+                            ? legInfo(step, nextStep)
+                            : null;
                         return (
+                          <Fragment key={step.id}>
                           <SortableStepLI
-                            key={step.id}
                             step={step}
                             color={color}
                             isBooked={isBooked}
@@ -1251,6 +1280,23 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                               />
                             )}
                           </SortableStepLI>
+                          {paidLeg && (
+                            <li className="relative -mt-2 mb-4 flex items-center gap-2 text-[11px]">
+                              <span
+                                className="inline-flex h-5 w-5 items-center justify-center rounded-full border bg-white"
+                                style={{ borderColor: color, color }}
+                              >
+                                <TransportIcon
+                                  mode={paidLeg.mode}
+                                  className="h-3 w-3"
+                                />
+                              </span>
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-700">
+                                ✓ {paidLeg.label} · Transport paid
+                              </span>
+                            </li>
+                          )}
+                          </Fragment>
                         );
                       })}
                     </ol>
