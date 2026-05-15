@@ -29,6 +29,7 @@ import {
   type UserTripState,
 } from "@/lib/mock/friends";
 import { addUserTrip, loadUserTrips } from "@/lib/userTrips";
+import { loadBookedStepIds, removeBookedStepIds } from "@/lib/bookings";
 import {
   getDisruptionForTripDay,
   affectedStepIds as resolveAffectedStepIds,
@@ -112,14 +113,18 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
   const [trip, setTrip] = useState<Trip>(initialTrip);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [placementDay, setPlacementDay] = useState<number | null>(null);
-  const [users, setUsers] = useState<Record<string, UserTripState>>({
-    me: emptyUserState(),
-  });
+  const [users, setUsers] = useState<Record<string, UserTripState>>(() => ({
+    me: {
+      ...emptyUserState(),
+      booked: new Set(loadBookedStepIds(initialTrip.id)),
+    },
+  }));
   const [activeUserId, setActiveUserId] = useState<string>("me");
   const [addedFriendIds, setAddedFriendIds] = useState<string[]>([]);
   const [shareOpen, setShareOpen] = useState(false);
   const [openChangeFor, setOpenChangeFor] = useState<string | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [dayPendingDelete, setDayPendingDelete] = useState<number | null>(null);
   const [detailStepId, setDetailStepId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
@@ -418,6 +423,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
       return next;
     });
     setChecked(new Set());
+    if (activeUserId === "me") removeBookedStepIds(trip.id, checkedArray);
     setConfirmingCancel(false);
   }
 
@@ -433,6 +439,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
     setBooked((prev) => { const n = new Set(prev); n.delete(stepId); return n; });
     setConfirmed((prev) => { const n = new Set(prev); n.delete(stepId); return n; });
     setSwaps((prev) => { const n = { ...prev }; delete n[stepId]; return n; });
+    if (activeUserId === "me") removeBookedStepIds(trip.id, [stepId]);
   }
 
   function confirmStep(stepId: string) {
@@ -485,6 +492,82 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
       durationDays: prev.days.length + 1,
     }));
     setSelectedDay(nextNum);
+  }
+
+  function deleteDay(dayNumber: number) {
+    setDayPendingDelete(null);
+    if (trip.days.length <= 1) return;
+    const sorted = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
+    const idx = sorted.findIndex((d) => d.dayNumber === dayNumber);
+    if (idx === -1) return;
+
+    const removed = sorted[idx];
+    const isFirst = idx === 0;
+    const isLast = idx === sorted.length - 1;
+
+    // The arrival/departure airport and hotel must not be lost when the trip's
+    // first or last day is removed — carry them into the new edge day.
+    const carried =
+      isFirst || isLast
+        ? removed.steps.filter(
+            (s) => s.kind === "airport" || s.kind === "hotel"
+          )
+        : [];
+    const carriedIds = new Set(carried.map((s) => s.id));
+    const droppedIds = removed.steps
+      .filter((s) => !carriedIds.has(s.id))
+      .map((s) => s.id);
+
+    let rest = sorted.filter((_, i) => i !== idx);
+    if (carried.length > 0 && isFirst) {
+      rest = rest.map((d, i) =>
+        i === 0 ? { ...d, steps: [...carried, ...d.steps] } : d
+      );
+    } else if (carried.length > 0 && isLast) {
+      rest = rest.map((d, i) =>
+        i === rest.length - 1 ? { ...d, steps: [...d.steps, ...carried] } : d
+      );
+    }
+
+    // Renumber so day numbers stay sequential (colors, keys and "+ Day" all
+    // rely on a contiguous 1..n range).
+    const renumbered = rest.map((d, i) => ({ ...d, dayNumber: i + 1 }));
+    setTrip((prev) => ({
+      ...prev,
+      days: renumbered,
+      durationDays: renumbered.length,
+    }));
+
+    if (droppedIds.length > 0) {
+      setChecked((prev) => {
+        const n = new Set(prev);
+        droppedIds.forEach((id) => n.delete(id));
+        return n;
+      });
+      setBooked((prev) => {
+        const n = new Set(prev);
+        droppedIds.forEach((id) => n.delete(id));
+        return n;
+      });
+      setConfirmed((prev) => {
+        const n = new Set(prev);
+        droppedIds.forEach((id) => n.delete(id));
+        return n;
+      });
+      setSwaps((prev) => {
+        const n = { ...prev };
+        droppedIds.forEach((id) => delete n[id]);
+        return n;
+      });
+      if (activeUserId === "me") removeBookedStepIds(trip.id, droppedIds);
+    }
+
+    if (
+      selectedDay !== null &&
+      (selectedDay === dayNumber || selectedDay > renumbered.length)
+    ) {
+      setSelectedDay(null);
+    }
   }
 
   function addStep(dayNumber: number, lng: number, lat: number) {
@@ -924,7 +1007,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
             const color = DAY_COLORS[(day.dayNumber - 1) % DAY_COLORS.length];
             return (
               <section key={day.dayNumber} className="mb-6">
-                <div className="mb-3 flex items-baseline justify-between">
+                <div className="mb-3 flex items-baseline justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span
                       className="inline-block h-2.5 w-2.5 rounded-full"
@@ -934,8 +1017,51 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                       Day {day.dayNumber} — {day.title}
                     </h2>
                   </div>
-                  <span className="text-xs text-zinc-400">{day.date}</span>
+                  <div className="flex shrink-0 items-center gap-3">
+                    {day.date && (
+                      <span className="text-xs text-zinc-400">{day.date}</span>
+                    )}
+                    {trip.days.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          guardAction(() =>
+                            setDayPendingDelete(day.dayNumber)
+                          )
+                        }
+                        className="text-xs font-medium text-zinc-400 transition hover:text-rose-600"
+                      >
+                        Delete day
+                      </button>
+                    )}
+                  </div>
                 </div>
+                {dayPendingDelete === day.dayNumber && (
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+                    <span>
+                      {day.dayNumber === 1 ||
+                      day.dayNumber === trip.days.length
+                        ? "Delete this day? Its airport and hotel will move to the adjacent day."
+                        : "Delete this day and all of its stops?"}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setDayPendingDelete(null)}
+                        className="rounded-full border border-rose-200 bg-white px-3 py-1 font-medium text-rose-700"
+                      >
+                        Keep
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteDay(day.dayNumber)}
+                        className="rounded-full bg-rose-600 px-3 py-1 font-medium text-white transition hover:bg-rose-700"
+                      >
+                        Delete day
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
@@ -1420,6 +1546,7 @@ function StepRow({
   onOpenDetail,
   dragHandleProps,
 }: StepRowProps) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const disruptLabel =
     disruptionKind === "closure"
       ? "Closed"
@@ -1581,12 +1708,44 @@ function StepRow({
         </button>
         <button
           type="button"
-          onClick={onDelete}
+          onClick={() => {
+            if (isBooked) setConfirmingDelete(true);
+            else onDelete();
+          }}
           className="ml-auto rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-50"
         >
           Delete
         </button>
       </div>
+
+      {/* Double confirmation for deleting a booked stop */}
+      {confirmingDelete && (
+        <div className="mx-2 mb-2 flex flex-col gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs text-rose-900">
+          <span>
+            Are you sure you want to delete this? If a reimbursement applies,
+            the venues will contact you by email.
+          </span>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(false)}
+              className="rounded-full border border-rose-200 bg-white px-3 py-1 font-medium text-rose-700"
+            >
+              Keep
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmingDelete(false);
+                onDelete();
+              }}
+              className="rounded-full bg-rose-600 px-3 py-1 font-medium text-white transition hover:bg-rose-700"
+            >
+              Yes, delete
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Alternatives panel */}
       {isChangeOpen && alternatives.length > 0 && (

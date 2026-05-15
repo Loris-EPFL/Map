@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { Trip, TripStep, StepKind } from "@/lib/mock/types";
+import { addBookedStepIds } from "@/lib/bookings";
 
 const PRICE_RANGES: Record<StepKind, [number, number]> = {
   airport: [20, 40],
@@ -54,6 +55,7 @@ type Props = { trip: Trip; steps: TripStep[] };
 
 export default function BookingView({ trip, steps }: Props) {
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("flavia@hotmail.com");
   const [cardNumber, setCardNumber] = useState("");
   const [expiry, setExpiry] = useState("");
   const [cvv, setCvv] = useState("");
@@ -79,6 +81,14 @@ export default function BookingView({ trip, steps }: Props) {
     return digits;
   }
 
+  function handleConfirm() {
+    addBookedStepIds(
+      trip.id,
+      steps.map((s) => s.id)
+    );
+    setConfirmed(true);
+  }
+
   if (confirmed) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 px-5">
@@ -93,6 +103,10 @@ export default function BookingView({ trip, steps }: Props) {
             {steps.length} {steps.length === 1 ? "stop" : "stops"} booked for{" "}
             <span className="font-medium text-zinc-700">{fmt(total)}</span>.
             <br />A confirmation will appear in your trips.
+          </p>
+          <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+            Your reservations and all necessary information have been sent to{" "}
+            <span className="font-semibold">{email}</span>.
           </p>
           <Link
             href={`/explore/${trip.id}`}
@@ -225,6 +239,22 @@ export default function BookingView({ trip, steps }: Props) {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-zinc-600">
+                Email
+              </label>
+              <input
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:border-zinc-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-400"
+              />
+              <p className="mt-1 text-xs text-zinc-400">
+                Your reservations and all necessary information will be sent to
+                this address.
+              </p>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-zinc-600">
                 Card number
               </label>
               <div className="relative">
@@ -283,12 +313,17 @@ export default function BookingView({ trip, steps }: Props) {
         <div className="mx-auto max-w-lg">
           <button
             type="button"
-            onClick={() => setConfirmed(true)}
+            onClick={handleConfirm}
             className="w-full rounded-full bg-emerald-600 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.98]"
           >
             Confirm &amp; Pay · {fmt(total)}
           </button>
-          <p className="mt-2 text-center text-xs text-zinc-400">
+          <p className="mt-2 text-center text-xs text-zinc-500">
+            On confirmation, your reservations and all necessary information
+            will be sent by email to{" "}
+            <span className="font-medium text-zinc-700">{email}</span>.
+          </p>
+          <p className="mt-1 text-center text-xs text-zinc-400">
             By confirming you agree to the cancellation policy for each provider.
           </p>
         </div>
