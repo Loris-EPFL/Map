@@ -889,6 +889,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
               fill
               sizes="(min-width: 1024px) 460px, 100vw"
               className="object-cover"
+              priority
               unoptimized
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/0" />
@@ -1149,6 +1150,7 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                   </div>
                 )}
                 <DndContext
+                  id={`dnd-day-${day.dayNumber}`}
                   sensors={sensors}
                   collisionDetection={closestCenter}
                   onDragEnd={(e: DragEndEvent) => {

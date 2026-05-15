@@ -18,7 +18,14 @@ import type { MapClientProps } from "./MapClient";
 import TripPin from "./TripPin";
 import ItineraryStep from "./ItineraryStep";
 import StepDetailCard from "@/components/trip/StepDetailCard";
+import TransportIcon from "./TransportIcon";
 import { fetchRoute, type Coord } from "@/lib/mock/routing";
+import { legInfo, formatDuration, type LegInfo } from "@/lib/mock/transport";
+import {
+  legId,
+  loadPurchasedLegIds,
+  addPurchasedLegId,
+} from "@/lib/tickets";
 
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 const MAP_STYLE_GLOBE = "https://tiles.openfreemap.org/styles/positron";
@@ -108,6 +115,39 @@ function getTripPhotos(trip: Trip): string[] {
   return [trip.coverImageUrl, ...stepPhotos].slice(0, 4);
 }
 
+// Place the leg icon on the drawn route. When the road geometry is available
+// we take the route vertex midway (by index) between the vertices nearest the
+// two stops, so the icon always sits on the path; otherwise the line is a
+// straight segment and its midpoint is on the line.
+function legAnchor(
+  route: Coord[] | undefined,
+  from: { lng: number; lat: number },
+  to: { lng: number; lat: number }
+): { lng: number; lat: number } {
+  const mid = { lng: (from.lng + to.lng) / 2, lat: (from.lat + to.lat) / 2 };
+  if (!route || route.length < 2) return mid;
+  const nearestIdx = (p: { lng: number; lat: number }) => {
+    let best = 0;
+    let bestD = Infinity;
+    for (let k = 0; k < route.length; k++) {
+      const dx = route[k][0] - p.lng;
+      const dy = route[k][1] - p.lat;
+      const d = dx * dx + dy * dy;
+      if (d < bestD) {
+        bestD = d;
+        best = k;
+      }
+    }
+    return best;
+  };
+  const a = nearestIdx(from);
+  const b = nearestIdx(to);
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  const m = route[Math.floor((lo + hi) / 2)] ?? route[Math.floor(route.length / 2)];
+  return { lng: m[0], lat: m[1] };
+}
+
 export default function MapCanvas(props: MapClientProps) {
   const router = useRouter();
   const mapRef = useRef<MapRef>(null);
@@ -115,6 +155,17 @@ export default function MapCanvas(props: MapClientProps) {
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
   const [photoIdx, setPhotoIdx] = useState(0);
   const [center, setCenter] = useState({ lng: 10, lat: 25 });
+  const [activeLeg, setActiveLeg] = useState<{
+    lng: number;
+    lat: number;
+    color: string;
+    legId: string;
+    fromName: string;
+    toName: string;
+    info: LegInfo;
+  } | null>(null);
+  const [purchased, setPurchased] = useState<Set<string>>(new Set());
+  const [buyingLegId, setBuyingLegId] = useState<string | null>(null);
   const onStepClick = props.mode === "itinerary" ? props.onStepClick : undefined;
   const openStepId =
     props.mode === "itinerary" ? props.openStepId : undefined;
@@ -162,6 +213,21 @@ export default function MapCanvas(props: MapClientProps) {
   }, [isGlobe, props]);
 
   const [dayRoutes, setDayRoutes] = useState<Record<number, Coord[]>>({});
+
+  useEffect(() => {
+    if (!trip) return;
+    setPurchased(new Set(loadPurchasedLegIds(trip.id)));
+  }, [trip]);
+
+  function buyTicket(tripId: string, id: string) {
+    setBuyingLegId(id);
+    // Simulate a short payment round-trip, then persist + acknowledge.
+    setTimeout(() => {
+      addPurchasedLegId(tripId, id);
+      setPurchased((prev) => new Set(prev).add(id));
+      setBuyingLegId((cur) => (cur === id ? null : cur));
+    }, 900);
+  }
 
   useEffect(() => {
     if (isGlobe || !trip) return;
@@ -428,6 +494,151 @@ export default function MapCanvas(props: MapClientProps) {
             </Marker>
           ))
         )}
+
+      {/* Transport-mode icon on each leg between two consecutive stops */}
+      {!isGlobe &&
+        trip &&
+        trip.days.flatMap((day) => {
+          const color = DAY_COLORS[(day.dayNumber - 1) % DAY_COLORS.length];
+          return day.steps.slice(0, -1).map((from, i) => {
+            const to = day.steps[i + 1];
+            const { lng, lat } = legAnchor(
+              dayRoutes[day.dayNumber],
+              from,
+              to
+            );
+            const info = legInfo(from, to);
+            const id = legId(from.id, to.id);
+            const isPurchased = purchased.has(id);
+            return (
+              <Marker
+                key={`leg-${day.dayNumber}-${from.id}-${to.id}`}
+                longitude={lng}
+                latitude={lat}
+                anchor="center"
+                onClick={(e) => {
+                  e.originalEvent.stopPropagation();
+                  setActiveLeg({
+                    lng,
+                    lat,
+                    color,
+                    legId: id,
+                    fromName: from.name,
+                    toName: to.name,
+                    info,
+                  });
+                }}
+              >
+                <div className="relative">
+                  <button
+                    type="button"
+                    title={`${info.label} · ${formatDuration(info.minutes)}`}
+                    aria-label={`${info.label} from ${from.name} to ${to.name}`}
+                    className="flex h-7 w-7 items-center justify-center rounded-full border-2 bg-white text-zinc-700 shadow-md transition hover:scale-110"
+                    style={{ borderColor: color }}
+                  >
+                    <TransportIcon mode={info.mode} className="h-4 w-4" />
+                  </button>
+                  {isPurchased && (
+                    <span
+                      className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-white bg-emerald-500 text-[8px] font-bold text-white"
+                      title="Ticket purchased"
+                    >
+                      ✓
+                    </span>
+                  )}
+                </div>
+              </Marker>
+            );
+          });
+        })}
+
+      {!isGlobe && activeLeg && (
+        <Popup
+          longitude={activeLeg.lng}
+          latitude={activeLeg.lat}
+          anchor="bottom"
+          offset={20}
+          closeButton={true}
+          closeOnClick={true}
+          maxWidth="260px"
+          onClose={() => setActiveLeg(null)}
+          className="step-detail-popup"
+        >
+          <div className="w-56 p-1">
+            <div className="flex items-center gap-2">
+              <span
+                className="flex h-8 w-8 items-center justify-center rounded-full border-2 bg-white"
+                style={{ borderColor: activeLeg.color, color: activeLeg.color }}
+              >
+                <TransportIcon mode={activeLeg.info.mode} className="h-4 w-4" />
+              </span>
+              <div>
+                <div className="text-sm font-semibold text-zinc-900">
+                  {activeLeg.info.label}
+                </div>
+                <div className="text-[11px] text-zinc-500">
+                  {formatDuration(activeLeg.info.minutes)} · {activeLeg.info.km} km
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 text-xs text-zinc-600">
+              <span className="font-medium text-zinc-800">
+                {activeLeg.fromName}
+              </span>{" "}
+              →{" "}
+              <span className="font-medium text-zinc-800">
+                {activeLeg.toName}
+              </span>
+            </div>
+            <p className="mt-2 rounded-md bg-zinc-50 px-2 py-1.5 text-[11px] leading-relaxed text-zinc-500">
+              {activeLeg.info.tip}
+            </p>
+
+            {activeLeg.info.needsTicket &&
+              (() => {
+                const isPurchased = purchased.has(activeLeg.legId);
+                const isBuying = buyingLegId === activeLeg.legId;
+                if (isPurchased) {
+                  return (
+                    <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-[11px] text-emerald-700">
+                      <div className="font-semibold">Ticket purchased ✓</div>
+                      <div className="mt-0.5 text-emerald-600">
+                        You&apos;re all set — your ticket and details have been
+                        sent by email.
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="mt-2">
+                    <div className="mb-1.5 flex items-baseline justify-between text-xs">
+                      <span className="text-zinc-500">Ticket</span>
+                      <span className="font-semibold text-zinc-900">
+                        ${activeLeg.info.price.toFixed(2)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isBuying || !trip}
+                      onClick={() =>
+                        trip && buyTicket(trip.id, activeLeg.legId)
+                      }
+                      className="w-full rounded-full bg-emerald-600 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
+                    >
+                      {isBuying
+                        ? "Processing…"
+                        : `Buy ticket · $${activeLeg.info.price.toFixed(2)}`}
+                    </button>
+                    <p className="mt-1 text-center text-[10px] text-zinc-400">
+                      Prototype — no real charge will occur.
+                    </p>
+                  </div>
+                );
+              })()}
+          </div>
+        </Popup>
+      )}
 
       {!isGlobe && detailStep && (
         <Popup
