@@ -52,6 +52,24 @@ import Confetti from "./Confetti";
 
 const DAY_COLORS = ["#22d3ee", "#f97316", "#f472b6", "#34d399", "#a78bfa", "#fb7185"];
 
+// Booking checklist: stops grouped by kind, in a sensible booking order.
+const BOOKING_KIND_ORDER: StepKind[] = [
+  "airport",
+  "hotel",
+  "transport",
+  "restaurant",
+  "activity",
+  "viewpoint",
+];
+const KIND_META: Record<StepKind, { label: string; emoji: string }> = {
+  airport: { label: "Flights", emoji: "✈️" },
+  hotel: { label: "Lodging", emoji: "🏨" },
+  transport: { label: "Transport", emoji: "🚆" },
+  restaurant: { label: "Restaurants", emoji: "🍽️" },
+  activity: { label: "Activities", emoji: "🎟️" },
+  viewpoint: { label: "Viewpoints", emoji: "🌄" },
+};
+
 // No step kind is "confirmable" — every stop uses the Book flow only.
 const CONFIRMABLE_KINDS: Set<StepKind> = new Set();
 
@@ -158,6 +176,8 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
   const [shareOpen, setShareOpen] = useState(false);
   const [openChangeFor, setOpenChangeFor] = useState<string | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [celebratedAllBooked, setCelebratedAllBooked] = useState(false);
   const [dayPendingDelete, setDayPendingDelete] = useState<number | null>(null);
   const [editingDateDay, setEditingDateDay] = useState<number | null>(null);
   // Starts empty so server and first client render match; the effect below
@@ -420,6 +440,61 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
     () => grossTotal(trip.days.flatMap((d) => d.steps)),
     [trip]
   );
+
+  const bookingPlan = useMemo(() => {
+    const allSteps = trip.days.flatMap((d) => d.steps);
+    const groups = BOOKING_KIND_ORDER.map((kind) => {
+      const items = allSteps.filter((s) => s.kind === kind);
+      if (items.length === 0) return null;
+      const unbookedIds = items
+        .filter((s) => !booked.has(s.id))
+        .map((s) => s.id);
+      const price = items
+        .filter((s) => !booked.has(s.id))
+        .reduce((a, s) => a + grossStepPrice(s), 0);
+      return {
+        kind,
+        total: items.length,
+        booked: items.length - unbookedIds.length,
+        unbookedIds,
+        price,
+      };
+    }).filter((g): g is NonNullable<typeof g> => g !== null);
+    const remainingIds = groups.flatMap((g) => g.unbookedIds);
+    const remainingPrice = groups.reduce((a, g) => a + g.price, 0);
+    const bookedTotal = allSteps.length - remainingIds.length;
+    const nextKind = groups.find((g) => g.unbookedIds.length > 0)?.kind ?? null;
+    return {
+      groups,
+      remainingIds,
+      remainingPrice,
+      bookedTotal,
+      total: allSteps.length,
+      nextKind,
+    };
+  }, [trip, booked]);
+
+  function bookStepIds(ids: string[]) {
+    if (ids.length === 0) return;
+    guardAction(() => {
+      setReviewOpen(false);
+      router.push(`/explore/${trip.id}/book?steps=${ids.join(",")}`);
+    });
+  }
+
+  function openReview() {
+    setReviewOpen(true);
+    if (
+      bookingPlan.total > 0 &&
+      bookingPlan.remainingIds.length === 0 &&
+      !celebratedAllBooked
+    ) {
+      setCelebratedAllBooked(true);
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 2500);
+      toast({ message: "Every stop is booked — you're all set 🎉" });
+    }
+  }
 
   const bookedCount = booked.size;
   const confirmedCount = confirmed.size;
@@ -1469,9 +1544,19 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
                         onClick={() => guardAction(() => {
                           router.push(`/explore/${trip.id}/book?steps=${pendingBookable.join(",")}`);
                         })}
-                        className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-emerald-700"
+                        className="rounded-full border border-emerald-300 bg-white px-4 py-2 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50"
                       >
                         Book selected
+                      </button>
+                    )}
+                    {bookingPlan.total > 0 && (
+                      <button
+                        onClick={openReview}
+                        className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-emerald-700"
+                      >
+                        {bookingPlan.remainingIds.length === 0
+                          ? "Booking ✓"
+                          : `Review & book · ${bookingPlan.bookedTotal}/${bookingPlan.total}`}
                       </button>
                     )}
                   </div>
@@ -1481,6 +1566,139 @@ export default function TripView({ trip: initialTrip }: { trip: Trip }) {
           );
         })()}
       </aside>
+
+      {/* Review & book checkpoint sheet */}
+      {reviewOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:px-4">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setReviewOpen(false)}
+          />
+          <div className="relative flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+            <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
+              <h2 className="text-base font-semibold text-zinc-900">
+                Review &amp; book
+              </h2>
+              <button
+                type="button"
+                onClick={() => setReviewOpen(false)}
+                aria-label="Close"
+                className="rounded-full p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
+              >
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden>
+                  <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-5 py-4">
+              {/* Overall progress */}
+              <div className="mb-4">
+                <div className="mb-1.5 flex items-baseline justify-between text-sm">
+                  <span className="font-medium text-zinc-700">
+                    {bookingPlan.bookedTotal} / {bookingPlan.total} booked
+                  </span>
+                  {bookingPlan.remainingIds.length > 0 && (
+                    <span className="text-zinc-500">
+                      {formatPrice(bookingPlan.remainingPrice)} left · incl. fees
+                    </span>
+                  )}
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-zinc-100">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{
+                      width: `${
+                        bookingPlan.total === 0
+                          ? 0
+                          : Math.round(
+                              (bookingPlan.bookedTotal / bookingPlan.total) * 100
+                            )
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Groups by kind */}
+              <ul className="space-y-2">
+                {bookingPlan.groups.map((g) => {
+                  const done = g.unbookedIds.length === 0;
+                  const isNext = bookingPlan.nextKind === g.kind;
+                  return (
+                    <li
+                      key={g.kind}
+                      className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 ${
+                        isNext
+                          ? "border-emerald-300 bg-emerald-50/60"
+                          : "border-zinc-200"
+                      }`}
+                    >
+                      <span className="text-lg" aria-hidden>
+                        {KIND_META[g.kind].emoji}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 text-sm font-medium text-zinc-900">
+                          {KIND_META[g.kind].label}
+                          {isNext && !done && (
+                            <span className="rounded-full bg-emerald-600 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-white">
+                              Next up
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-zinc-500">
+                          {g.booked}/{g.total} booked
+                          {!done && ` · ${formatPrice(g.price)}`}
+                        </div>
+                      </div>
+                      {done ? (
+                        <span className="shrink-0 text-sm font-semibold text-emerald-600">
+                          ✓
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => bookStepIds(g.unbookedIds)}
+                          className="shrink-0 rounded-full bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-zinc-700"
+                        >
+                          Book {g.unbookedIds.length}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            {/* Footer / closure */}
+            <div className="border-t border-zinc-100 px-5 py-4">
+              {bookingPlan.remainingIds.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => bookStepIds(bookingPlan.remainingIds)}
+                  className="w-full rounded-full bg-emerald-600 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                >
+                  Book all remaining ({bookingPlan.remainingIds.length}) ·{" "}
+                  {formatPrice(bookingPlan.remainingPrice)}
+                </button>
+              ) : (
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-emerald-700">
+                    🎉 You&apos;re all set — every stop is booked.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setReviewOpen(false)}
+                    className="mt-3 w-full rounded-full bg-zinc-900 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-700"
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Leave without saving modal */}
       {showLeaveConfirm && (
